@@ -1,0 +1,22 @@
+[package]
+name = "tpt-e-cipher"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Formally verified constant-time HW crypto wrappers (AES, SHA-256, ECC)"
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+proptest = { workspace = true }
+
+[features]
+default = []
+mock = []
+
+[package.metadata.docs.rs]
+features = ["mock"]

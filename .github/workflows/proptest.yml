@@ -1,0 +1,21 @@
+name: Proptest
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  proptest:
+    name: Property-based tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --features mock --release
+        env:
+          PROPTEST_CASES: "10000"

@@ -1,0 +1,24 @@
+[package]
+name = "tpt-e-chronos"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "WCET-bounded, zero-allocation telemetry ring buffer for ESP32"
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+tpt-e-typestate-hal = { path = "../tpt-e-typestate-hal", optional = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+tpt-e-typestate-hal = { path = "../tpt-e-typestate-hal", features = ["mock"] }
+
+[features]
+default = []
+mock = []
+
+[package.metadata.docs.rs]
+features = ["mock"]

@@ -6,20 +6,20 @@ Tracks work described in `spec.txt`. Phases mirror spec §8 (Roadmap); crate sub
 
 ## Phase 0 — Repo & Workspace Setup
 
-- [ ] Initialize git repo, `.gitignore` for Rust/Cargo
-- [ ] Create Cargo workspace root `Cargo.toml` (`[workspace]` with `members = ["crates/*"]`)
-- [ ] Enforce strict workspace lints (`#![deny(unsafe_code)]` default; document per-crate exception process for unavoidable register-access boundaries)
-- [ ] Choose and pin `esp-hal` version/feature strategy (chip-agnostic via HAL generics, not a single chip)
-- [ ] Dual-license: add `LICENSE-MIT` and `LICENSE-APACHE`, reference in each crate's `Cargo.toml`
-- [ ] Write root `README.md`: unified philosophy (Typestate over runtime checks, `deny(unsafe_code)`, property-based testing, WCET-bounded), architecture diagram, crate table
-- [ ] Add `CONTRIBUTING.md` codifying the "TPT Standard" (spec §4) as review checklist items
-- [ ] Scaffold `.github/workflows/`:
-  - [ ] `build.yml` — no_std build matrix across ESP32, ESP32-S3, ESP32-C3/C6
-  - [ ] `test.yml` — `cargo test --features mock` (host/std)
-  - [ ] `proptest.yml` — property-based test run
-  - [ ] `kani.yml` — `cargo kani` on critical modules (ring buffer bounds, typestate transitions; crypto once Phase 3 lands)
-- [ ] Decide crate publishing strategy (independently versioned vs. workspace-synced versions) and document it
-- [ ] Set up `cargo-deny` / license & dependency audit in CI
+- [x] Initialize git repo, `.gitignore` for Rust/Cargo
+- [x] Create Cargo workspace root `Cargo.toml` (`[workspace]` with `members = ["crates/*"]`)
+- [x] Enforce strict workspace lints (`#![deny(unsafe_code)]` default; document per-crate exception process for unavoidable register-access boundaries)
+- [x] Choose and pin `esp-hal` version/feature strategy (chip-agnostic via HAL generics, not a single chip)
+- [x] Dual-license: add `LICENSE-MIT` and `LICENSE-APACHE`, reference in each crate's `Cargo.toml`
+- [x] Write root `README.md`: unified philosophy (Typestate over runtime checks, `deny(unsafe_code)`, property-based testing, WCET-bounded), architecture diagram, crate table
+- [x] Add `CONTRIBUTING.md` codifying the "TPT Standard" (spec §4) as review checklist items
+- [x] Scaffold `.github/workflows/`:
+  - [x] `build.yml` — no_std build matrix across ESP32, ESP32-S3, ESP32-C3/C6 + cargo-deny
+  - [x] `test.yml` — `cargo test --features mock` (host/std)
+  - [x] `proptest.yml` — property-based test run
+  - [x] `kani.yml` — `cargo kani` on critical modules (ring buffer bounds, typestate transitions; crypto once Phase 3 lands)
+- [x] Decide crate publishing strategy (independently versioned vs. workspace-synced versions) and document it
+- [x] Set up `cargo-deny` / license & dependency audit in CI
 
 ---
 

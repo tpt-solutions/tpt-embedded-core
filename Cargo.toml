@@ -1,0 +1,28 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/tpt-software/tpt-embedded-core"
+
+[workspace.dependencies]
+esp-hal = { version = "0.22", default-features = false }
+proptest = { version = "1", default-features = false, features = ["std"] }
+
+[workspace.lints.clippy]
+pedantic = "warn"
+nursery = "warn"
+cargo = "warn"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+missing_copy_implementations = "warn"
+trivial_casts = "deny"
+trivial_numeric_casts = "deny"
+unused_import_braces = "warn"
+unused_results = "warn"

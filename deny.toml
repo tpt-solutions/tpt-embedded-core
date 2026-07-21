@@ -1,0 +1,40 @@
+# cargo-deny configuration for tpt-embedded-core
+[advisories]
+vulnerability = "deny"
+unmaintained = "warn"
+notice = "warn"
+yanked = "deny"
+
+[licenses]
+unlicensed = "deny"
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "Zlib",
+    "ISC",
+    "Unicode-DFS-2016",
+    "CC0-1.0",
+]
+deny = [
+    "GPL-2.0",
+    "GPL-3.0",
+    "AGPL-3.0",
+]
+confidence-threshold = 0.8
+
+[bans]
+multiple-versions = "deny"
+skip = [
+    # esp-hal ecosystem dependencies that may temporarily have duplicates
+    { name = "critical-section", version = "1" },
+]
+skip-tree = [
+    # esp-hal has many internal dependencies; we trust their version management
+    { name = "esp-hal" },
+    { name = "proptest" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

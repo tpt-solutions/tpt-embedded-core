@@ -1,0 +1,22 @@
+[package]
+name = "tpt-e-swarm-sync"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Verified state machine for mesh coordination on ESP32 swarms"
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+proptest = { workspace = true }
+
+[features]
+default = []
+mock = []
+
+[package.metadata.docs.rs]
+features = ["mock"]

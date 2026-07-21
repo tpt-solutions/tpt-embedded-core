@@ -1,0 +1,45 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build (${{ matrix.chip }})
+    strategy:
+      matrix:
+        chip:
+          - esp32
+          - esp32s3
+          - esp32c3
+          - esp32c6
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: |
+            xtensa-esp32-none-elf
+            xtensa-esp32s3-none-elf
+            riscv32imc-unknown-none-elf
+            riscv32imac-unknown-none-elf
+      - uses: esp-rs/xtensa-toolchain@v1
+        with:
+          ldproxy: true
+      - run: cargo build -p tpt-e-typestate-hal --features use_esp_hal
+      - run: cargo build --workspace --features mock
+
+  deny:
+    name: License & dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
