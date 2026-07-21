@@ -14,6 +14,7 @@
 
 use crate::backend::{IdleOps, ConfiguredOps, TransferringOps};
 use crate::state::{Complete, Configured, Idle, Transferring};
+#[cfg(feature = "mock")]
 use crate::mock::MockDmaChannel;
 
 /// A DMA channel parameterised by its current typestate and backend.
@@ -25,10 +26,23 @@ use crate::mock::MockDmaChannel;
 ///   → `start(...)`    → `DmaChannel<Transferring>`
 ///   → `wait(...)`     → `DmaChannel<Complete>`
 ///
-/// The `B` type parameter represents the backend implementation. By default,
-/// this uses `MockDmaChannel` for host-side testing.
+/// The `B` type parameter represents the backend implementation. When the
+/// `mock` feature is enabled, it defaults to `MockDmaChannel` for host-side
+/// testing; otherwise a backend must be specified explicitly.
+#[cfg(feature = "mock")]
 #[derive(Debug)]
 pub struct DmaChannel<State, B = MockDmaChannel> {
+    _state: core::marker::PhantomData<State>,
+    backend: B,
+}
+
+/// A DMA channel parameterised by its current typestate and backend.
+///
+/// See the `mock`-feature-enabled definition of this type for details;
+/// without `mock`, no default backend is provided.
+#[cfg(not(feature = "mock"))]
+#[derive(Debug)]
+pub struct DmaChannel<State, B> {
     _state: core::marker::PhantomData<State>,
     backend: B,
 }
@@ -69,6 +83,7 @@ impl<B: TransferringOps<Complete = B>> DmaChannel<Transferring, B> {
 }
 
 // Convenience constructors for common backends
+#[cfg(feature = "mock")]
 impl DmaChannel<Idle, MockDmaChannel> {
     /// Create a new mock DMA channel for host-side testing.
     pub fn mock(channel_id: u8) -> Self {

@@ -31,7 +31,7 @@ fn pop_never_panics() {
 fn pop_empty_returns_none() {
     use tpt_e_chronos::ring_buf::RingBuf;
     let buf = RingBuf::<u32, 8>::new(0);
-    let result = buf.pop::<u32>();
+    let result = buf.pop();
     assert!(result.is_none());
 }
 
@@ -48,7 +48,7 @@ fn len_is_bounded_by_capacity() {
             let val: u32 = kani::any();
             let _ = buf.push(val);
         } else {
-            let _ = buf.pop::<u32>();
+            let _ = buf.pop();
         }
     }
 
@@ -63,7 +63,7 @@ fn wrapping_indices_are_safe() {
     let buf = RingBuf::<u32, 4>::new(0);
     for i in 0u32..100 {
         let _ = buf.push(i);
-        let _ = buf.pop::<u32>();
+        let _ = buf.pop();
     }
 }
 
@@ -108,5 +108,5 @@ fn pop_is_constant_time() {
     let buf = RingBuf::<u32, 8>::new(0);
     let val: u32 = kani::any();
     let _ = buf.push(val);
-    let _ = buf.pop::<u32>();
+    let _ = buf.pop();
 }

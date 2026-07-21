@@ -20,16 +20,25 @@
 //!
 //! If any token is missing, the code fails to compile — not at runtime.
 //!
+//! Tokens can only be minted by the crate itself (or, under the `mock`
+//! feature, via `Token::mock()` for host-side testing) — there is no public
+//! `Token::new()` that arbitrary calling code can use to fabricate a proof
+//! without a real subsystem backing it.
+//!
 //! # Example
+//!
+//! This example requires the `mock` feature (`cargo test --features mock`),
+//! since token construction outside the crate is only available for
+//! host-side testing.
 //!
 //! ```rust
 //! use tpt_e_slumber::sleep::SleepController;
 //! use tpt_e_slumber::tokens::{DmaParkedToken, RtcIsolatedToken, BuffersFlushedToken};
 //!
 //! let controller = SleepController::new();
-//! let dma_token = DmaParkedToken::new();
-//! let rtc_token = RtcIsolatedToken::new();
-//! let buffers_token = BuffersFlushedToken::new();
+//! let dma_token = DmaParkedToken::mock();
+//! let rtc_token = RtcIsolatedToken::mock();
+//! let buffers_token = BuffersFlushedToken::mock();
 //!
 //! // This would enter deep sleep (returns `!`):
 //! // controller.enter_deep_sleep(dma_token, rtc_token, buffers_token);

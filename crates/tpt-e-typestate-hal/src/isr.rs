@@ -1,5 +1,6 @@
 //! Safe ISR abstractions.
 
+#[cfg(feature = "mock")]
 use crate::mock::MockIsrGuard;
 
 /// An interrupt service routine registration guard.
@@ -7,14 +8,28 @@ use crate::mock::MockIsrGuard;
 /// While this handle exists, the ISR is registered and active.
 /// Dropping the handle unregisters the ISR.
 ///
-/// The `B` type parameter represents the backend implementation. By default,
-/// this uses `MockIsrGuard` for host-side testing.
+/// The `B` type parameter represents the backend implementation. When the
+/// `mock` feature is enabled, it defaults to `MockIsrGuard` for host-side
+/// testing; otherwise a backend must be specified explicitly.
+#[cfg(feature = "mock")]
 #[allow(missing_debug_implementations)]
 pub struct IsrGuard<F: Fn(), B = MockIsrGuard<F>> {
     backend: B,
     _handler: core::marker::PhantomData<F>,
 }
 
+/// An interrupt service routine registration guard.
+///
+/// See the `mock`-feature-enabled definition of this type for details;
+/// without `mock`, no default backend is provided.
+#[cfg(not(feature = "mock"))]
+#[allow(missing_debug_implementations)]
+pub struct IsrGuard<F: Fn(), B> {
+    backend: B,
+    _handler: core::marker::PhantomData<F>,
+}
+
+#[cfg(feature = "mock")]
 impl<F: Fn()> IsrGuard<F, MockIsrGuard<F>> {
     /// Register a mock ISR for host-side testing.
     pub fn mock(handler: F) -> Self {

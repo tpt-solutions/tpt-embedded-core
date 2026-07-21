@@ -11,6 +11,7 @@ use crate::traits::{Aes, Sha256};
 /// operations which are vulnerable to timing side-channel attacks. This is
 /// acceptable for host-side logic testing only.
 #[derive(Debug)]
+#[allow(missing_copy_implementations)]
 pub struct MockAesEngine {
     round_keys: [[u8; 16]; 11],
 }
@@ -49,6 +50,7 @@ impl Aes for MockAesEngine {
 /// **WARNING**: This implementation is NOT constant-time. It is for logic
 /// testing only. Accepts up to 256 bytes of input.
 #[derive(Debug)]
+#[allow(missing_copy_implementations)]
 pub struct MockSha256Engine {
     state: [u32; 8],
     buffer: [u8; 256],

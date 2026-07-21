@@ -8,9 +8,9 @@
 fn tokens_always_creatable() {
     use tpt_e_slumber::tokens::{BuffersFlushedToken, DmaParkedToken, RtcIsolatedToken};
 
-    let _dma = DmaParkedToken::new();
-    let _rtc = RtcIsolatedToken::new();
-    let _buffers = BuffersFlushedToken::new();
+    let _dma = DmaParkedToken::mock();
+    let _rtc = RtcIsolatedToken::mock();
+    let _buffers = BuffersFlushedToken::mock();
 }
 
 /// Prove that SleepController can always be created without panics.
@@ -32,9 +32,9 @@ fn all_tokens_enable_deep_sleep() {
     use tpt_e_slumber::tokens::{BuffersFlushedToken, DmaParkedToken, RtcIsolatedToken};
 
     let controller = SleepController::new();
-    let dma = DmaParkedToken::new();
-    let rtc = RtcIsolatedToken::new();
-    let buffers = BuffersFlushedToken::new();
+    let dma = DmaParkedToken::mock();
+    let rtc = RtcIsolatedToken::mock();
+    let buffers = BuffersFlushedToken::mock();
 
     // enter_deep_sleep returns `!`, so we can't actually call it in a proof.
     // But we can verify all tokens are the correct types by binding them.

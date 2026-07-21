@@ -28,8 +28,23 @@ impl DmaParkedToken {
     /// - All DMA channels have completed their transfers.
     /// - No new DMA transfers will be started after this token is issued.
     /// - All DMA buffers have been flushed to memory.
-    pub fn new() -> Self {
+    ///
+    /// Restricted to `pub(crate)`: no subsystem in this workspace issues
+    /// this token from a verified precondition yet (the DMA/RTC/UART driver
+    /// integration is still TODO), so it is deliberately not constructible
+    /// from outside the crate. Use [`DmaParkedToken::mock`] under the
+    /// `mock` feature for host-side testing.
+    pub(crate) fn new() -> Self {
         Self { _private: () }
+    }
+
+    /// Create a DMA parked token for host-side testing.
+    ///
+    /// Only available under the `mock` feature — does not prove any real
+    /// precondition, unlike a token issued by a real driver.
+    #[cfg(feature = "mock")]
+    pub fn mock() -> Self {
+        Self::new()
     }
 }
 
@@ -51,8 +66,20 @@ impl RtcIsolatedToken {
     /// - All RTC memory writes have completed.
     /// - RTC memory regions are properly isolated for sleep.
     /// - No DMA or other peripheral is writing to RTC memory.
-    pub fn new() -> Self {
+    ///
+    /// Restricted to `pub(crate)` — see [`DmaParkedToken::new`] for why. Use
+    /// [`RtcIsolatedToken::mock`] under the `mock` feature for testing.
+    pub(crate) fn new() -> Self {
         Self { _private: () }
+    }
+
+    /// Create an RTC isolated token for host-side testing.
+    ///
+    /// Only available under the `mock` feature — does not prove any real
+    /// precondition, unlike a token issued by a real driver.
+    #[cfg(feature = "mock")]
+    pub fn mock() -> Self {
+        Self::new()
     }
 }
 
@@ -73,7 +100,19 @@ impl BuffersFlushedToken {
     /// The caller must guarantee that:
     /// - All UART transmit buffers are empty.
     /// - No pending DMA transfers to UART peripherals.
-    pub fn new() -> Self {
+    ///
+    /// Restricted to `pub(crate)` — see [`DmaParkedToken::new`] for why. Use
+    /// [`BuffersFlushedToken::mock`] under the `mock` feature for testing.
+    pub(crate) fn new() -> Self {
         Self { _private: () }
+    }
+
+    /// Create a buffers-flushed token for host-side testing.
+    ///
+    /// Only available under the `mock` feature — does not prove any real
+    /// precondition, unlike a token issued by a real driver.
+    #[cfg(feature = "mock")]
+    pub fn mock() -> Self {
+        Self::new()
     }
 }

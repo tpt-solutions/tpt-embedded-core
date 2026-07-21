@@ -10,9 +10,11 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
+tpt-e-chronos = { path = "../tpt-e-chronos" }
 
 [dev-dependencies]
 proptest = { workspace = true }
+tpt-e-chronos = { path = "../tpt-e-chronos", features = ["mock"] }
 
 [features]
 default = []

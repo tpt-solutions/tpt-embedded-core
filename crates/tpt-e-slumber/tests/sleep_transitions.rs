@@ -13,9 +13,9 @@ use tpt_e_slumber::tokens::{BuffersFlushedToken, DmaParkedToken, RtcIsolatedToke
 #[test]
 fn deep_sleep_with_all_tokens() {
     let controller = SleepController::new();
-    let dma_token = DmaParkedToken::new();
-    let rtc_token = RtcIsolatedToken::new();
-    let buffers_token = BuffersFlushedToken::new();
+    let dma_token = DmaParkedToken::mock();
+    let rtc_token = RtcIsolatedToken::mock();
+    let buffers_token = BuffersFlushedToken::mock();
 
     // In a real system, this would enter deep sleep.
     // For testing, we verify the function compiles and the tokens are accepted.
@@ -38,9 +38,9 @@ fn default_controller() {
 /// Verify that tokens are Copy and can be reused.
 #[test]
 fn tokens_are_copy() {
-    let dma = DmaParkedToken::new();
-    let rtc = RtcIsolatedToken::new();
-    let buffers = BuffersFlushedToken::new();
+    let dma = DmaParkedToken::mock();
+    let rtc = RtcIsolatedToken::mock();
+    let buffers = BuffersFlushedToken::mock();
 
     // All tokens should be Copy, allowing them to be used multiple times
     let dma2 = dma;
@@ -54,9 +54,9 @@ fn tokens_are_copy() {
 /// Verify that tokens are Debug-printable.
 #[test]
 fn tokens_are_debug() {
-    let dma = DmaParkedToken::new();
-    let rtc = RtcIsolatedToken::new();
-    let buffers = BuffersFlushedToken::new();
+    let dma = DmaParkedToken::mock();
+    let rtc = RtcIsolatedToken::mock();
+    let buffers = BuffersFlushedToken::mock();
 
     // Verify Debug formatting works
     let _ = format!("{:?}", dma);
