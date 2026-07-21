@@ -13,12 +13,12 @@ fn ring_buffer_via_dma_handle() {
     let ring = RingBuf::<u8, 32>::new(0);
 
     // Push some telemetry data
-    for i in 0..10 {
-        assert!(ring.push(i as u8).is_ok());
+    for i in 0u8..10 {
+        assert!(ring.push(i).is_ok());
     }
 
-    // Simulate DMA channel lifecycle
-    let dma = DmaChannel::new(0);
+    // Simulate DMA channel lifecycle using mock
+    let dma = DmaChannel::mock(0);
     let dma = dma.configure(buf, 64);
 
     // At this point, in a real system, the DMA would be configured
@@ -29,7 +29,7 @@ fn ring_buffer_via_dma_handle() {
 
     // Verify ring buffer still has our data
     assert_eq!(ring.len(), 10);
-    for i in 0..10 {
-        assert_eq!(ring.pop(), Some(i as u8));
+    for i in 0u8..10 {
+        assert_eq!(ring.pop(), Some(i));
     }
 }

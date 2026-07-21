@@ -26,3 +26,4 @@ trivial_casts = "deny"
 trivial_numeric_casts = "deny"
 unused_import_braces = "warn"
 unused_results = "warn"
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }

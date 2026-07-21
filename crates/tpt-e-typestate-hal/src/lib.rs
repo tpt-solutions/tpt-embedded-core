@@ -18,6 +18,7 @@
 //! Exception granted per workspace policy: this is the foundational HAL
 //! boundary crate.
 
+pub mod backend;
 pub mod dma;
 pub mod isr;
 pub mod state;

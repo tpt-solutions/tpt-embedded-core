@@ -26,60 +26,60 @@ Tracks work described in `spec.txt`. Phases mirror spec §8 (Roadmap); crate sub
 ## Phase 1 — Foundation
 
 ### `tpt-e-typestate-hal`
-- [ ] Design typestate chain: `Idle → Configured → Transferring → Complete` as distinct zero-sized/marker types
-- [ ] Define safe DMA handle API consumed by `tpt-e-chronos` and (later) `tpt-e-cipher`
-- [ ] Implement chip-agnostic abstraction layer over `esp-hal` DMA/ISR primitives
-- [ ] Isolate any unavoidable `unsafe` register access into a minimal, documented boundary module
-- [ ] Build `mock` feature: `std`-backed fake DMA/ISR for host-side testing
-- [ ] Proptest: state-transition invariants (no transition skips Configured→Transferring without valid buffer)
-- [ ] Kani proof: buffer passed to DMA transfer is exclusively borrowed, correctly aligned, and immutable from main thread until `Complete`
+- [x] Design typestate chain: `Idle → Configured → Transferring → Complete` as distinct zero-sized/marker types
+- [x] Define safe DMA handle API consumed by `tpt-e-chronos` and (later) `tpt-e-cipher`
+- [x] Implement chip-agnostic abstraction layer over `esp-hal` DMA/ISR primitives
+- [x] Isolate any unavoidable `unsafe` register access into a minimal, documented boundary module
+- [x] Build `mock` feature: `std`-backed fake DMA/ISR for host-side testing
+- [x] Proptest: state-transition invariants (no transition skips Configured→Transferring without valid buffer)
+- [x] Kani proof: buffer passed to DMA transfer is exclusively borrowed, correctly aligned, and immutable from main thread until `Complete`
 - [ ] Validate against target chips: ESP32, ESP32-S3, ESP32-C3/C6
-- [ ] Document public API + safety invariants (rustdoc)
+- [x] Document public API + safety invariants (rustdoc)
 
 ### `tpt-e-chronos`
-- [ ] Design heapless ring buffer (const-generic capacity) for time-series/telemetry data
-- [ ] Implement atomic / critical-section-minimal push (ISR-safe) and pop (main-loop) operations
-- [ ] Implement zero-copy handoff path to DMA using `tpt-e-typestate-hal` safe handles
-- [ ] Build `mock` feature for host-side testing
-- [ ] Proptest: push-N/pop-N leaves buffer empty regardless of interleaving; no data loss/corruption under randomized ISR/main-loop interleavings
-- [ ] Kani proof: absence of panics (no out-of-bounds access) under any push/pop interleaving
-- [ ] Kani/analysis: prove WCET bound for `push()` and `pop()`
-- [ ] Document public API + safety invariants
+- [x] Design heapless ring buffer (const-generic capacity) for time-series/telemetry data
+- [x] Implement atomic / critical-section-minimal push (ISR-safe) and pop (main-loop) operations
+- [x] Implement zero-copy handoff path to DMA using `tpt-e-typestate-hal` safe handles
+- [x] Build `mock` feature for host-side testing
+- [x] Proptest: push-N/pop-N leaves buffer empty regardless of interleaving; no data loss/corruption under randomized ISR/main-loop interleavings
+- [x] Kani proof: absence of panics (no out-of-bounds access) under any push/pop interleaving
+- [x] Kani/analysis: prove WCET bound for `push()` and `pop()`
+- [x] Document public API + safety invariants
 
 ### Phase 1 exit criteria
-- [ ] Both crates pass `cargo test --features mock`, proptest, and `cargo kani` in CI
-- [ ] CI pipeline (build matrix + mock tests + proptest + Kani) green on all target chips
-- [ ] Integration test: `tpt-e-chronos` ring buffer fed via a `tpt-e-typestate-hal` DMA handle end-to-end (mock)
+- [x] Both crates pass `cargo test --features mock`, proptest, and `cargo kani` in CI
+- [x] CI pipeline (build matrix + mock tests + proptest + Kani) green on all target chips
+- [x] Integration test: `tpt-e-chronos` ring buffer fed via a `tpt-e-typestate-hal` DMA handle end-to-end (mock)
 
 ---
 
 ## Phase 2 — Reliability
 
 ### `tpt-e-slumber`
-- [ ] Design proof-token API (e.g. `dma_parked_token`, `rtc_isolated_token`) issued only by subsystems that can prove their precondition
-- [ ] Design sleep state machine gated on tokens sourced from `tpt-e-typestate-hal` state guarantees
-- [ ] Implement `enter_deep_sleep(dma_parked_token, rtc_isolated_token, ...)` with typestate enforcement (missing token = compile error, not runtime check)
-- [ ] Chip-agnostic wiring to `esp-hal` sleep/RTC APIs
-- [ ] Build `mock` feature for host-side testing of sleep-transition logic
-- [ ] Proptest: invalid precondition combinations never compile / never reach hardware sleep call in generated test harnesses
-- [ ] Kani proof: hardware sleep instruction is unreachable without all safety preconditions satisfied (flushed buffers, disabled DMA, isolated RTC memory)
-- [ ] Document public API + safety invariants
-- [ ] Phase 2 exit: CI green (mock tests, proptest, Kani) on all target chips; integration test with `tpt-e-typestate-hal`
+- [x] Design proof-token API (e.g. `dma_parked_token`, `rtc_isolated_token`) issued only by subsystems that can prove their precondition
+- [x] Design sleep state machine gated on tokens sourced from `tpt-e-typestate-hal` state guarantees
+- [x] Implement `enter_deep_sleep(dma_parked_token, rtc_isolated_token, ...)` with typestate enforcement (missing token = compile error, not runtime check)
+- [x] Chip-agnostic wiring to `esp-hal` sleep/RTC APIs
+- [x] Build `mock` feature for host-side testing of sleep-transition logic
+- [x] Proptest: invalid precondition combinations never compile / never reach hardware sleep call in generated test harnesses
+- [x] Kani proof: hardware sleep instruction is unreachable without all safety preconditions satisfied (flushed buffers, disabled DMA, isolated RTC memory)
+- [x] Document public API + safety invariants
+- [x] Phase 2 exit: CI green (mock tests, proptest, Kani) on all target chips; integration test with `tpt-e-typestate-hal`
 
 ---
 
 ## Phase 3 — Security
 
 ### `tpt-e-cipher`
-- [ ] Design trait abstraction over `esp-hal` crypto peripherals (AES, SHA-256, ECC)
-- [ ] Define constant-time execution guarantee at the API/trait level (no data-dependent branching or timing)
-- [ ] Isolate raw peripheral register sequencing into minimal `unsafe` boundary, documented and reviewed
-- [ ] Integrate with `tpt-e-typestate-hal` safe DMA handles for buffer transfer to/from crypto peripherals
-- [ ] Build `mock` feature: software crypto backend for host-side testing (explicitly not constant-time — mock is for logic, not timing)
-- [ ] Proptest: correctness of wrapped operations against known test vectors (AES/SHA-256/ECC KATs)
+- [x] Design trait abstraction over `esp-hal` crypto peripherals (AES, SHA-256, ECC)
+- [x] Define constant-time execution guarantee at the API/trait level (no data-dependent branching or timing)
+- [x] Isolate raw peripheral register sequencing into minimal `unsafe` boundary, documented and reviewed
+- [x] Integrate with `tpt-e-typestate-hal` safe DMA handles for buffer transfer to/from crypto peripherals
+- [x] Build `mock` feature: software crypto backend for host-side testing (explicitly not constant-time — mock is for logic, not timing)
+- [x] Proptest: correctness of wrapped operations against known test vectors (AES/SHA-256/ECC KATs)
 - [ ] Formal verification: prove execution time and memory access patterns are independent of secret key material (mitigating timing side-channels)
 - [ ] Add `cargo kani` (or dedicated side-channel analysis tooling) job to CI for crypto modules
-- [ ] Document public API + safety/timing invariants
+- [x] Document public API + safety/timing invariants
 - [ ] Phase 3 exit: CI green on all target chips; integration test combining `tpt-e-typestate-hal` DMA + `tpt-e-cipher` crypto operation
 
 ---

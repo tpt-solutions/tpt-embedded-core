@@ -111,7 +111,7 @@ impl<T, const CAP: usize> RingBuf<T, CAP> {
 
     /// Return a raw pointer to the internal buffer (crate-internal).
     pub(crate) fn buffer_ptr(&self) -> *const T {
-        let cell_ptr = &self.buffer as *const _;
+        let cell_ptr: *const UnsafeCell<[T; CAP]> = &self.buffer;
         cell_ptr.cast::<T>()
     }
 }

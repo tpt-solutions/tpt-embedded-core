@@ -36,14 +36,6 @@ impl<'a, T: Copy, const CAP: usize> RingBuf<T, CAP> {
     }
 }
 
-impl<T, const CAP: usize> RingBuf<T, CAP> {
-    /// Return a raw pointer to the internal buffer.
-    fn buffer_ptr(&self) -> *const T {
-        let cell_ptr = &self.buffer as *const _;
-        cell_ptr.cast::<T>()
-    }
-}
-
 impl<'a, T, const CAP: usize> DmaLoan<'a, T, CAP> {
     /// Reclaim the buffer after DMA completes.
     ///

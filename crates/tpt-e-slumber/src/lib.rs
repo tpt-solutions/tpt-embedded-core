@@ -9,6 +9,42 @@
 //! Uses a proof-token API — subsystems issue tokens (e.g., `DmaParkedToken`,
 //! `RtcIsolatedToken`) only when they can prove their precondition is satisfied.
 //! Sleep transitions are gated on collecting the required tokens at compile time.
+//!
+//! # Typestate Guarantee
+//!
+//! Deep sleep can only be entered when **all** required proof tokens are provided:
+//!
+//! - `DmaParkedToken`: Proves all DMA channels are parked.
+//! - `RtcIsolatedToken`: Proves RTC memory is isolated.
+//! - `BuffersFlushedToken`: Proves all transmit buffers are flushed.
+//!
+//! If any token is missing, the code fails to compile — not at runtime.
+//!
+//! # Example
+//!
+//! ```rust
+//! use tpt_e_slumber::sleep::SleepController;
+//! use tpt_e_slumber::tokens::{DmaParkedToken, RtcIsolatedToken, BuffersFlushedToken};
+//!
+//! let controller = SleepController::new();
+//! let dma_token = DmaParkedToken::new();
+//! let rtc_token = RtcIsolatedToken::new();
+//! let buffers_token = BuffersFlushedToken::new();
+//!
+//! // This would enter deep sleep (returns `!`):
+//! // controller.enter_deep_sleep(dma_token, rtc_token, buffers_token);
+//! ```
+//!
+//! # Compile-time Safety
+//!
+//! The following fails to compile because no tokens are provided:
+//!
+//! ```compile_fail
+//! use tpt_e_slumber::sleep::SleepController;
+//!
+//! let controller = SleepController::new();
+//! controller.enter_deep_sleep(); // Error: missing tokens
+//! ```
 
 pub mod sleep;
 pub mod tokens;
