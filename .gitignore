@@ -1,0 +1,15 @@
+/target/
+**/target/
+Cargo.lock
+*.pdb
+
+# Kani
+*.kani-metadata.json
+target-kani/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db

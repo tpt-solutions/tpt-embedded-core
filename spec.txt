@@ -1,0 +1,85 @@
+Design Document: tpt-embedded-core
+A Proof-Native, Formally Verified no_std Foundation for ESP32 Ecosystems
+1. Executive Summary
+tpt-embedded-core is a unified Rust workspace repository providing a suite of tightly integrated, formally verified no_std crates for the ESP32 family. While tools like tpt-basestation excel at host-side mission control and tpt-crucible handles AI model compilation, a critical gap remains: the on-device execution layer lacks mathematical guarantees.
+This repository fills that gap by providing foundational libraries that enforce absolute error prevention, zero-allocation guarantees, and compile-time safety for the most dangerous operations in embedded systems (DMA, interrupts, cryptography, power transitions, and distributed state).
+2. Problem Statement
+The current no_std embedded Rust ecosystem, while vastly superior to C/C++, still leaves room for catastrophic, silent failures in production. Specifically:
+Unsafe Hardware Acceleration: Hardware crypto peripherals (AES, SHA, ECC) are often wrapped in unsafe blocks without formal guarantees of constant-time execution or correct register sequencing, leaving systems vulnerable to side-channel attacks or silent corruption.
+DMA & ISR Memory Aliasing: Direct Memory Access and Interrupt Service Routines inherently bypass standard Rust borrow checking. Developers routinely face subtle race conditions, buffer overflows, or unflushed caches when coordinating high-speed peripherals.
+Unbounded Execution in Telemetry: Standard ring buffers or queues can exhibit unpredictable latency or panic under heavy interrupt load, violating the strict timing requirements of flight control or industrial monitoring.
+State Divergence in Mesh Networks: Lightweight mesh protocols (like ESP-NOW) lack formally verified state machines, leading to unrecoverable desynchronization when nodes experience network partitions or brownouts.
+Silent Sleep Failures: Transitioning to deep sleep with dangling DMA references, unflushed UART buffers, or improperly isolated RTC memory is a leading cause of "zombie" IoT devices that drain batteries or fail to wake.
+3. Core Goals & Non-Goals
+Goals
+Absolute Error Prevention: Eliminate panics, undefined behavior (UB), and silent data corruption at compile time.
+Mathematical Correctness: Use formal verification tools (Kani, Creusot) to prove critical invariants (e.g., buffer bounds, state transitions, constant-time execution).
+Zero-Allocation (no_std): All core data structures must be #![no_std] compatible, relying exclusively on static or pre-allocated memory (e.g., heapless, const generics).
+Mock-First Development: Every crate must provide a std-backed mock implementation, allowing 100% of business logic and state transitions to be tested on the desktop before touching silicon.
+Seamless Ecosystem Integration: Act as a safe, verified abstraction layer on top of esp-hal, not a replacement for it.
+Non-Goals
+Host-Side Tooling: This repo does not handle serial flashing, desktop UI, or BLE provisioning (that is the domain of tpt-basestation).
+High-Level Application Logic: This repo provides the foundations (primitives, buffers, state machines), not the end-user application (e.g., specific sensor drivers or business logic).
+Dynamic Memory: No reliance on alloc or global heaps. All memory layouts must be deterministically known at compile time.
+4. Design Philosophy: The "TPT" Standard
+Every crate in this workspace must adhere to the following non-negotiable principles:
+Typestate over Runtime Checks: State machines should be encoded in the type system. An invalid operation (e.g., entering deep sleep while DMA is active) should be a compile-time error, not a runtime panic.
+#![deny(unsafe_code)]: Any unavoidable unsafe block (e.g., raw peripheral register access) must be isolated in a minimal, heavily documented, and formally verified boundary layer.
+Property-Based Testing: Core invariants must be proven using proptest or similar frameworks, supplemented by formal model checking.
+WCET-Bounded: All public functions must have mathematically provable, deterministic Worst-Case Execution Times. No unbounded loops or dynamic recursion.
+
+ System Architecture
+The repository is structured as a Cargo workspace containing five interdependent, yet independently publishable, crates:
+tpt-embedded-core/
+├── Cargo.toml                 # Workspace root (enforces strict lints)
+├── README.md                  # Unified documentation & philosophy
+├── .github/workflows/         # CI: no_std build, proptest, Kani verification
+└── crates/
+    ├── tpt-e-typestate-hal/     # [Foundation] Compile-time safe DMA & ISR abstractions
+    ├── tpt-e-cipher/             # [Security] Formally verified HW crypto wrappers
+    ├── tpt-e-chronos/           # [Data] WCET-bounded, zero-allocation telemetry ring buffer
+    ├── tpt-e-slumber/           # [Power] Compile-time verified power management transitions
+    └── tpt-e-swarm-sync/        # [Network] Verified state machine for mesh coordination
+
+
+Crate Interactions
+tpt-e-typestate-hal is the foundational layer. It provides the safe DMA handles that tpt-e-chronos and tpt-e-cipher rely upon.
+tpt-e-slumber consumes the state guarantees from tpt-e-typestate-hal to prove that all peripherals are safely parked before allowing a transition to DeepSleep.
+tpt-e-swarm-sync utilizes tpt-e-chronos for deterministic, panic-free message queuing during network events.
+6. Crate Specifications
+6.1 tpt-e-typestate-hal
+Purpose: Enforce compile-time safety for Direct Memory Access (DMA) and Interrupt Service Routines (ISRs).
+Mechanism: Uses the Typestate pattern. A peripheral transitions through states: Idle → Configured → Transferring → Complete.
+Proof Target: Prove via Kani that a buffer passed to a DMA transfer is exclusively borrowed, correctly aligned, and cannot be mutated by the main thread until the Complete state is reached.
+6.2 tpt-e-cipher
+Purpose: Mathematically verified, constant-time wrappers for ESP32 hardware crypto accelerators (AES, SHA-256, ECC).
+Mechanism: Abstracts the esp-hal crypto peripherals behind a trait that guarantees constant-time execution paths regardless of input data.
+Proof Target: Formal verification that execution time and memory access patterns are independent of secret key material (mitigating timing side-channels).
+6.3 tpt-e-chronos
+Purpose: A time-series data structure and ring buffer designed for DMA-backed sensor logging.
+Mechanism: A heapless ring buffer with atomic, lock-free (or critical-section minimal) push/pop operations. Supports zero-copy handoff to DMA.
+Proof Target: Prove absence of panics (no out-of-bounds access) under any interleaving of ISR pushes and main-loop pops. Prove strict WCET bounds for push() and pop().
+6.4 tpt-e-slumber
+Purpose: Compile-time verified power management and sleep transitions.
+Mechanism: A state machine that requires explicit proof tokens from other subsystems before allowing sleep. E.g., device.enter_deep_sleep(dma_parked_token, rtc_isolated_token).
+Proof Target: Prove that it is impossible to call the hardware sleep instruction without first satisfying all safety preconditions (flushed buffers, disabled DMA).
+6.5 tpt-e-swarm-sync
+Purpose: Deterministic, state-consistent coordination for ESP32 swarms (over ESP-NOW or 802.15.4).
+Mechanism: A lightweight, formally verified state machine (e.g., based on TLA+ specs translated to Rust) that handles message sequencing, acknowledgments, and partition recovery.
+Proof Target: Prove that the state machine cannot reach a divergent state (e.g., two nodes believing they are both the primary) under defined network failure models.
+7. Verification & Testing Strategy
+To live up to the "proof-native" mandate, testing is multi-layered:
+Layer 1: Mock-First Unit Tests (std)
+Every crate includes a mock feature. CI runs cargo test --features mock on the host, verifying all state machines and logic without hardware.
+Layer 2: Property-Based Testing (proptest)
+Fuzzing core invariants (e.g., "pushing N items and popping N items leaves the buffer empty, regardless of interleaving").
+Layer 3: Formal Verification (kani)
+GitHub Actions runs cargo kani on critical modules (e.g., ring buffer bounds, crypto constant-time checks, typestate transitions) to mathematically prove the absence of UB and panics.
+Layer 4: Hardware-in-the-Loop (HIL)
+Optional nightly jobs that flash a minimal test harness to a real ESP32-S3 to verify that the no_std abstractions correctly map to physical hardware behavior.
+8. Roadmap & Phased Rollout
+Building all five crates simultaneously is risky. A phased, iterative approach is recommended:
+Phase 1 (Foundation): tpt-e-typestate-hal + tpt-e-chronos. These solve the most immediate, universal pain points (DMA safety and reliable telemetry). Establish the CI/verification pipeline here.
+Phase 2 (Reliability): tpt-e-slumber. Build on Phase 1 to solve the silent sleep failure problem, a major request in battery-operated IoT.
+Phase 3 (Security): tpt-e-cipher. Add formally verified crypto, leveraging the safe DMA patterns from Phase 1.
+Phase 4 (Distributed): tpt-e-swarm-sync. The most complex crate, relying on the stability of the previous four to provide robust mesh coordination for tpt-crucible AI swarms.
