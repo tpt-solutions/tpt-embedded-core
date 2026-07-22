@@ -11,14 +11,16 @@ workspace = true
 
 [dependencies]
 tpt-e-chronos = { path = "../tpt-e-chronos" }
+heapless = { workspace = true, optional = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
 tpt-e-chronos = { path = "../tpt-e-chronos", features = ["mock"] }
+heapless = { workspace = true }
 
 [features]
 default = []
-mock = []
+mock = ["heapless"]
 
 [[example]]
 name = "mesh_election"

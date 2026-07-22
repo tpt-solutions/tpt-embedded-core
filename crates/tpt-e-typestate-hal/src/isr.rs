@@ -12,7 +12,6 @@ use crate::mock::MockIsrGuard;
 /// `mock` feature is enabled, it defaults to `MockIsrGuard` for host-side
 /// testing; otherwise a backend must be specified explicitly.
 #[cfg(feature = "mock")]
-#[allow(missing_debug_implementations)]
 pub struct IsrGuard<F: Fn(), B = MockIsrGuard<F>> {
     backend: B,
     _handler: core::marker::PhantomData<F>,
@@ -23,10 +22,16 @@ pub struct IsrGuard<F: Fn(), B = MockIsrGuard<F>> {
 /// See the `mock`-feature-enabled definition of this type for details;
 /// without `mock`, no default backend is provided.
 #[cfg(not(feature = "mock"))]
-#[allow(missing_debug_implementations)]
 pub struct IsrGuard<F: Fn(), B> {
+    #[allow(dead_code)] // used only when a backend (mock or esp_hal) is selected
     backend: B,
     _handler: core::marker::PhantomData<F>,
+}
+
+impl<F: Fn(), B> core::fmt::Debug for IsrGuard<F, B> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("IsrGuard").finish_non_exhaustive()
+    }
 }
 
 #[cfg(feature = "mock")]

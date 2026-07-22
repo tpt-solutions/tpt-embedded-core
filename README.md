@@ -1,5 +1,10 @@
 # `tpt-embedded-core`
 
+[![Build](https://github.com/tpt-software/tpt-embedded-core/actions/workflows/build.yml/badge.svg)](https://github.com/tpt-software/tpt-embedded-core/actions/workflows/build.yml)
+[![Tests](https://github.com/tpt-software/tpt-embedded-core/actions/workflows/test.yml/badge.svg)](https://github.com/tpt-software/tpt-embedded-core/actions/workflows/test.yml)
+[![Proptest](https://github.com/tpt-software/tpt-embedded-core/actions/workflows/proptest.yml/badge.svg)](https://github.com/tpt-software/tpt-embedded-core/actions/workflows/proptest.yml)
+[![Kani](https://github.com/tpt-software/tpt-embedded-core/actions/workflows/kani.yml/badge.svg)](https://github.com/tpt-software/tpt-embedded-core/actions/workflows/kani.yml)
+
 A proof-native, formally verified `no_std` foundation for ESP32 ecosystems.
 
 ## Philosophy

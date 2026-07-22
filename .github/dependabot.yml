@@ -1,0 +1,31 @@
+version: 2
+updates:
+  # Keep Cargo dependencies up to date (esp-hal, proptest, heapless, etc.)
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+    groups:
+      esp-hal:
+        patterns:
+          - "esp-hal"
+      testing:
+        patterns:
+          - "proptest"
+          - "trybuild"
+      heapless:
+        patterns:
+          - "heapless"
+
+  # Keep GitHub Actions up to date
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ci"

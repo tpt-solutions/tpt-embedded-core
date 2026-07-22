@@ -5,11 +5,40 @@
 
 use crate::state_machine::Event;
 
+/// The type of a mesh message, encoded in the first byte of the payload.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[repr(u8)]
+pub enum MessageType {
+    /// Heartbeat — periodic liveness signal from the Primary.
+    Heartbeat = 0,
+    /// Election — node is announcing candidacy or contesting.
+    Election = 1,
+    /// Acknowledgment — confirms receipt of a previous message.
+    Ack = 2,
+    /// Data — application-level payload.
+    Data = 3,
+}
+
+impl MessageType {
+    /// Convert from raw byte, returning `None` for unknown types.
+    pub fn from_byte(b: u8) -> Option<Self> {
+        match b {
+            0 => Some(Self::Heartbeat),
+            1 => Some(Self::Election),
+            2 => Some(Self::Ack),
+            3 => Some(Self::Data),
+            _ => None,
+        }
+    }
+}
+
 /// A message exchanged between mesh nodes.
 #[derive(Debug, Copy, Clone)]
 pub struct Message {
     /// Monotonically increasing sequence number.
     pub sequence: u64,
+    /// Message type (encoded in the first byte of `payload`).
+    pub msg_type: MessageType,
     /// Message payload bytes.
     pub payload: [u8; 256],
 }
@@ -34,10 +63,12 @@ impl MeshNode {
             state_machine: crate::state_machine::MeshStateMachine::new(node_id),
             outbound: tpt_e_chronos::ring_buf::RingBuf::new(Message {
                 sequence: 0,
+                msg_type: MessageType::Heartbeat,
                 payload: [0u8; 256],
             }),
             inbound: tpt_e_chronos::ring_buf::RingBuf::new(Message {
                 sequence: 0,
+                msg_type: MessageType::Heartbeat,
                 payload: [0u8; 256],
             }),
         }
@@ -60,11 +91,10 @@ impl MeshNode {
 
     /// Process the next inbound message and return any event it generates.
     pub fn process_inbound(&mut self) -> Option<crate::state_machine::Event> {
-        self.inbound.pop().map(|msg| {
-            // For now, any received message is treated as a heartbeat.
-            // A real implementation would inspect the message type.
-            let _ = msg;
-            Event::HeartbeatReceived
+        self.inbound.pop().map(|msg| match msg.msg_type {
+            MessageType::Heartbeat => Event::HeartbeatReceived,
+            MessageType::Election => Event::HigherPriorityNodeFound,
+            MessageType::Ack | MessageType::Data => Event::HeartbeatReceived,
         })
     }
 

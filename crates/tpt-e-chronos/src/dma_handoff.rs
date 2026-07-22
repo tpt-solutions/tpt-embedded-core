@@ -1,7 +1,14 @@
 //! Zero-copy DMA handoff path for the ring buffer.
 //!
-//! Allows a `RingBuf` to lend its internal buffer to a DMA transfer,
+//! Allows a [`RingBuf`] to lend its internal buffer to a DMA transfer,
 //! then reclaim it once the transfer completes.
+//!
+//! # Cross-crate integration
+//!
+//! When the optional `tpt-e-typestate-hal` dependency is enabled,
+//! [`transfer_with_dma`] provides a convenience function that performs
+//! the lend → DMA transfer → reclaim cycle in one call, using a
+//! `tpt-e-typestate-hal` `DmaChannel<Transferring>` to drive the transfer.
 //!
 //! # Compile-time Exclusivity
 //!
@@ -20,6 +27,13 @@
 
 use core::fmt;
 use crate::ring_buf::RingBuf;
+
+#[cfg(feature = "tpt-e-typestate-hal")]
+use tpt_e_typestate_hal::dma::DmaChannel;
+#[cfg(feature = "tpt-e-typestate-hal")]
+use tpt_e_typestate_hal::state::{Complete, Transferring};
+#[cfg(all(feature = "tpt-e-typestate-hal", feature = "mock"))]
+use tpt_e_typestate_hal::mock::MockDmaChannel;
 
 /// A handle representing a buffer lent to a DMA transfer.
 ///
@@ -71,4 +85,56 @@ impl<'a, T, const CAP: usize> DmaLoan<'a, T, CAP> {
     pub unsafe fn reclaim(self) -> &'a mut RingBuf<T, CAP> {
         self.buf
     }
+}
+
+/// Complete a DMA transfer using a `RingBuf`'s backing storage as the
+/// transfer buffer, then reclaim the buffer for normal `push`/`pop` access.
+///
+/// This is the primary integration point between `tpt-e-chronos` and
+/// `tpt-e-typestate-hal`: the ring buffer lends its internal storage to a
+/// DMA transfer, the transfer completes, and the buffer is reclaimed — all
+/// without copying.
+///
+/// # Protocol
+///
+/// 1. The ring buffer's backing storage is lent to the DMA transfer via
+///    [`RingBuf::lend_for_dma`].
+/// 2. The DMA transfer is performed using the provided channel (the caller
+///    must ensure the buffer is compatible with the channel's transfer
+///    width).
+/// 3. The buffer is reclaimed via [`DmaLoan::reclaim`], restoring normal
+///    `push`/`pop` access.
+///
+/// # Safety
+///
+/// The DMA transfer must have fully completed before this function is
+/// called. The caller must ensure the buffer's element type `T` is
+/// compatible with the DMA transfer width (typically `u8`, `u16`, or `u32`).
+///
+/// # Example (mock)
+///
+/// ```rust
+/// #![allow(unsafe_code)]
+/// use tpt_e_chronos::ring_buf::RingBuf;
+/// use tpt_e_chronos::dma_handoff::transfer_with_dma;
+/// use tpt_e_typestate_hal::dma::DmaChannel;
+///
+/// let mut ring = RingBuf::<u32, 4>::new(0);
+/// let _ = ring.push(42);
+///
+/// let channel = DmaChannel::<_, tpt_e_typestate_hal::mock::MockDmaChannel>::mock(0);
+/// let mut ring = unsafe { transfer_with_dma(&mut ring, channel) };
+/// assert_eq!(ring.pop(), Some(42));
+/// ```
+#[cfg(feature = "tpt-e-typestate-hal")]
+pub unsafe fn transfer_with_dma<T: Copy, const CAP: usize, B>(
+    ring: &mut RingBuf<T, CAP>,
+    channel: DmaChannel<Transferring, B>,
+) -> &mut RingBuf<T, CAP>
+where
+    B: tpt_e_typestate_hal::backend::TransferringOps<Complete = B>,
+{
+    let (loan, _view) = ring.lend_for_dma();
+    let _complete = channel.wait();
+    loan.reclaim()
 }

@@ -1,0 +1,7 @@
+error[E0599]: no method named `wait` found for struct `DmaChannel<Configured>` in the current scope
+ --> tests/fail_cases/wait_without_start.rs:9:21
+  |
+9 |     let _ = channel.wait();
+  |                     ^^^^ method not found in `DmaChannel<Configured>`
+  |
+  = note: the method was found for `DmaChannel<Transferring, B>`

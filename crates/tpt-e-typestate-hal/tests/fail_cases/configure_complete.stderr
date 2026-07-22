@@ -1,0 +1,7 @@
+error[E0599]: no method named `configure` found for struct `DmaChannel<tpt_e_typestate_hal::state::Complete>` in the current scope
+  --> tests/fail_cases/configure_complete.rs:11:21
+   |
+11 |     let _ = channel.configure(unsafe { &mut BUF }, 64);
+   |                     ^^^^^^^^^ method not found in `DmaChannel<tpt_e_typestate_hal::state::Complete>`
+   |
+   = note: the method was found for `DmaChannel<Idle, B>`

@@ -1,0 +1,16 @@
+[package]
+name = "tpt-e-swarm-sync-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[dependencies]
+libfuzzer-sys = "0.4"
+tpt-e-swarm-sync = { path = "..", features = ["mock"] }
+
+[[bin]]
+name = "fuzz_mesh_node"
+path = "fuzz_targets/fuzz_mesh_node.rs"
+test = false
+doc = false
+bench = false

@@ -30,6 +30,10 @@ impl<T, const CAP: usize> core::fmt::Debug for RingBuf<T, CAP> {
 }
 
 impl<T, const CAP: usize> RingBuf<T, CAP> {
+    const _CAPACITY_CHECK: () = assert!(
+        CAP.is_power_of_two(),
+        "RingBuf capacity must be a power of two for correct mask-based indexing"
+    );
     const MASK: usize = CAP - 1;
 
     /// Create a new ring buffer, filling it with the provided initial value.

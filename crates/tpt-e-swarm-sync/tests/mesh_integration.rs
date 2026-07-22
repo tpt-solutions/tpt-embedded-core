@@ -3,7 +3,7 @@
 #![cfg(feature = "mock")]
 #![allow(missing_docs)]
 
-use tpt_e_swarm_sync::mesh::{Message, MeshNode};
+use tpt_e_swarm_sync::mesh::{Message, MessageType, MeshNode};
 use tpt_e_swarm_sync::state_machine::{Event, NodeRole};
 
 /// Test that a mesh node can be created and starts in Unknown state.
@@ -20,6 +20,7 @@ fn mesh_node_message_processing() {
     let mut node = MeshNode::new(1);
     let msg = Message {
         sequence: 1,
+        msg_type: MessageType::Heartbeat,
         payload: [0xAB; 256],
     };
     assert!(node.receive_message(msg).is_ok());
@@ -33,6 +34,7 @@ fn mesh_node_send_receive() {
     let node = MeshNode::new(1);
     let msg = Message {
         sequence: 1,
+        msg_type: MessageType::Heartbeat,
         payload: [0xCD; 256],
     };
     assert!(node.send_message(msg).is_ok());
@@ -58,6 +60,7 @@ fn mesh_node_ring_buffer_under_load() {
     for i in 0..32u64 {
         let msg = Message {
             sequence: i,
+            msg_type: MessageType::Data,
             payload: [i as u8; 256],
         };
         assert!(node.send_message(msg).is_ok());
@@ -65,6 +68,7 @@ fn mesh_node_ring_buffer_under_load() {
     // Buffer should be full now
     let msg = Message {
         sequence: 32,
+        msg_type: MessageType::Data,
         payload: [32u8; 256],
     };
     assert!(node.send_message(msg).is_err());

@@ -1,0 +1,13 @@
+[book]
+authors = ["TPT Software"]
+language = "en"
+multilingual = false
+src = "src"
+title = "TPT Embedded Core"
+
+[build]
+build-dir = "book"
+
+[output.html]
+git-repository-url = "https://github.com/tpt-software/tpt-embedded-core"
+edit-url-template = "https://github.com/tpt-software/tpt-embedded-core/edit/main/docs/{path}"
