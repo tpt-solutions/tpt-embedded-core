@@ -20,5 +20,9 @@ tpt-e-typestate-hal = { path = "../tpt-e-typestate-hal", features = ["mock"] }
 default = []
 mock = []
 
+[[example]]
+name = "ring_buffer_basics"
+required-features = ["mock"]
+
 [package.metadata.docs.rs]
 features = ["mock"]

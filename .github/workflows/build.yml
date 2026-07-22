@@ -14,11 +14,15 @@ jobs:
     name: Build (${{ matrix.chip }})
     strategy:
       matrix:
-        chip:
-          - esp32
-          - esp32s3
-          - esp32c3
-          - esp32c6
+        include:
+          - chip: esp32
+            target: xtensa-esp32-none-elf
+          - chip: esp32s3
+            target: xtensa-esp32s3-none-elf
+          - chip: esp32c3
+            target: riscv32imc-unknown-none-elf
+          - chip: esp32c6
+            target: riscv32imac-unknown-none-elf
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,8 +36,23 @@ jobs:
       - uses: esp-rs/xtensa-toolchain@v1
         with:
           ldproxy: true
-      - run: cargo build -p tpt-e-typestate-hal --features use_esp_hal
+      # Each matrix leg now actually builds for its own chip: the target
+      # triple and the esp-hal chip feature both vary per leg (previously
+      # this ran the identical host-target command 4 times).
+      - run: cargo build -p tpt-e-typestate-hal --target ${{ matrix.target }} --features "use_esp_hal,${{ matrix.chip }}"
       - run: cargo build --workspace --features mock
+
+  build-default-features:
+    name: Build (default features, host)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # No --features here on purpose: this is the regression guard for the
+      # 2026-07-22 fix where tpt-e-typestate-hal and tpt-e-swarm-sync both
+      # failed to compile with no features enabled, and CI never caught it
+      # because every other job always passes --features mock.
+      - run: cargo build --workspace
 
   deny:
     name: License & dependency audit

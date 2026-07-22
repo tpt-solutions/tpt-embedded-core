@@ -3,6 +3,7 @@
 //! **Note**: This mock is NOT constant-time. It is for logic testing only.
 //! Timing analysis must be performed against the hardware implementation.
 
+use crate::sha256_core::Sha256Core;
 use crate::traits::{Aes, Sha256};
 
 /// Mock AES engine using a simplified XOR-based cipher.
@@ -45,59 +46,33 @@ impl Aes for MockAesEngine {
     }
 }
 
-/// Mock SHA-256 engine using a simplified hash.
+/// Mock SHA-256 engine.
 ///
-/// **WARNING**: This implementation is NOT constant-time. It is for logic
-/// testing only. Accepts up to 256 bytes of input.
-#[derive(Debug)]
-#[allow(missing_copy_implementations)]
+/// This is a genuinely correct SHA-256 implementation (see
+/// [`crate::sha256_core::Sha256Core`], the same core `sha::Sha256Engine`
+/// uses) — it accepts input of any length with no artificial buffer cap,
+/// and chunked updates produce the same digest as a single bulk update.
+/// It is labeled "mock" only because it is a software fallback for
+/// host-side testing, not a hardware implementation with a proven-constant-
+/// time execution path.
+#[derive(Debug, Copy, Clone, Default)]
 pub struct MockSha256Engine {
-    state: [u32; 8],
-    buffer: [u8; 256],
-    buffer_len: usize,
+    core: Sha256Core,
 }
 
 impl MockSha256Engine {
     /// Create a new mock SHA-256 engine.
     pub fn new() -> Self {
-        Self {
-            state: [
-                0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-                0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
-            ],
-            buffer: [0u8; 256],
-            buffer_len: 0,
-        }
-    }
-}
-
-impl Default for MockSha256Engine {
-    fn default() -> Self {
-        Self::new()
+        Self::default()
     }
 }
 
 impl Sha256 for MockSha256Engine {
     fn update(&mut self, data: &[u8]) {
-        let remaining = 256 - self.buffer_len;
-        let copy_len = if data.len() < remaining { data.len() } else { remaining };
-        self.buffer[self.buffer_len..self.buffer_len + copy_len]
-            .copy_from_slice(&data[..copy_len]);
-        self.buffer_len += copy_len;
+        self.core.update(data);
     }
 
-    fn finalize(mut self) -> [u8; 32] {
-        for i in 0..self.buffer_len {
-            let word_idx = i % 8;
-            self.state[word_idx] = self.state[word_idx]
-                .wrapping_add(self.buffer[i] as u32)
-                .rotate_left(3);
-        }
-
-        let mut result = [0u8; 32];
-        for (i, word) in self.state.iter().enumerate() {
-            result[i * 4..i * 4 + 4].copy_from_slice(&word.to_be_bytes());
-        }
-        result
+    fn finalize(self) -> [u8; 32] {
+        self.core.finalize()
     }
 }

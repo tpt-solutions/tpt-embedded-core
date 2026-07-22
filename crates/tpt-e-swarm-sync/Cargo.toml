@@ -20,5 +20,9 @@ tpt-e-chronos = { path = "../tpt-e-chronos", features = ["mock"] }
 default = []
 mock = []
 
+[[example]]
+name = "mesh_election"
+required-features = ["mock"]
+
 [package.metadata.docs.rs]
 features = ["mock"]

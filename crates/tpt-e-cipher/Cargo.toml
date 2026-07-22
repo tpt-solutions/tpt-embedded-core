@@ -18,5 +18,9 @@ proptest = { workspace = true }
 default = []
 mock = []
 
+[[example]]
+name = "hash_a_buffer"
+required-features = ["mock"]
+
 [package.metadata.docs.rs]
 features = ["mock"]

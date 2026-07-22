@@ -16,5 +16,7 @@ pub mod sha;
 pub mod ecc;
 pub mod traits;
 
+mod sha256_core;
+
 #[cfg(feature = "mock")]
 pub mod mock;

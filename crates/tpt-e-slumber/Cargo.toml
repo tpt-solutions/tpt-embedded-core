@@ -11,12 +11,17 @@ workspace = true
 
 [dependencies]
 
-[dev-dependencies]
-proptest = { workspace = true }
+# No dev-dependencies: token construction currently takes no inputs (see
+# tokens.rs), so there is nothing proptest can usefully fuzz yet. Add
+# `proptest` back once real precondition-checked token issuance lands.
 
 [features]
 default = []
 mock = []
+
+[[example]]
+name = "sleep_cycle"
+required-features = ["mock"]
 
 [package.metadata.docs.rs]
 features = ["mock"]

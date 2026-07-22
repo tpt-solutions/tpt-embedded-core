@@ -1,0 +1,46 @@
+name: HIL (nightly, placeholder)
+
+# PLACEHOLDER WORKFLOW — not yet functional.
+#
+# No physical ESP32 hardware runner is available for this project yet (see
+# the unchecked "Validate against target chips" / "Optional nightly HIL
+# job" items in todo.md — every crate has only ever been exercised via the
+# `mock` feature on host, never on real silicon). This file exists so the
+# intended shape of that job is documented and version-controlled, but the
+# job below is disabled (`if: false`) so it can't silently fail or hang
+# waiting for a self-hosted runner that doesn't exist.
+#
+# To make this real:
+#   1. Stand up a self-hosted GitHub Actions runner with an ESP32-S3 (or
+#      whichever chip) attached via USB, labeled e.g. `esp32-hil`.
+#   2. Install `espflash`/`probe-rs` on that runner.
+#   3. Remove the `if: false` line below and point `runs-on` at the
+#      runner's label.
+#   4. Build and flash an actual minimal firmware image (not just a lib
+#      crate) that exercises the typestate HAL abstractions on hardware.
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch: {}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  hil:
+    name: Hardware-in-loop smoke test (disabled — no runner attached)
+    if: false
+    runs-on: [self-hosted, esp32-hil]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: xtensa-esp32s3-none-elf
+      - uses: esp-rs/xtensa-toolchain@v1
+        with:
+          ldproxy: true
+      - name: Build for ESP32-S3
+        run: cargo build -p tpt-e-typestate-hal --target xtensa-esp32s3-none-elf --features "use_esp_hal,esp32s3"
+      - name: Flash and run on attached hardware
+        run: espflash flash --monitor target/xtensa-esp32s3-none-elf/debug/tpt-e-typestate-hal

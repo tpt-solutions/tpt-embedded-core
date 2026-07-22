@@ -19,6 +19,16 @@ proptest = { workspace = true }
 default = []
 mock = []
 use_esp_hal = ["esp-hal"]
+# Per-chip feature forwarding to esp-hal, so CI's chip build matrix can
+# actually select a target chip instead of building the same thing 4 times.
+esp32 = ["esp-hal/esp32"]
+esp32s3 = ["esp-hal/esp32s3"]
+esp32c3 = ["esp-hal/esp32c3"]
+esp32c6 = ["esp-hal/esp32c6"]
+
+[[example]]
+name = "dma_transfer"
+required-features = ["mock"]
 
 [package.metadata.docs.rs]
 features = ["mock"]
