@@ -1,34 +1,33 @@
 //! Software crypto backend for host-side testing.
 //!
-//! **Note**: This mock is NOT constant-time. It is for logic testing only.
+//! **Note**: The mock AES is NOT constant-time. It is for logic testing only.
 //! Timing analysis must be performed against the hardware implementation.
 
 use crate::sha256_core::Sha256Core;
 use crate::traits::{Aes, Sha256};
 
-/// Mock AES engine using a simplified XOR-based cipher.
+/// Mock AES engine for host-side logic testing.
 ///
-/// **WARNING**: This implementation is NOT constant-time. It uses data-dependent
-/// operations which are vulnerable to timing side-channel attacks. This is
-/// acceptable for host-side logic testing only.
-#[derive(Debug)]
-#[allow(missing_copy_implementations)]
+/// Uses the same algebraic GF(2^8) S-box as [`crate::aes::AesEngine`]
+/// (which IS constant-time) but wrapped here for backward compatibility
+/// with existing test code. The mock label reflects that this is a
+/// software fallback, not a hardware peripheral — the algorithm itself
+/// is constant-time.
+#[derive(Debug, Clone, Copy)]
 pub struct MockAesEngine {
     round_keys: [[u8; 16]; 11],
 }
 
 impl MockAesEngine {
-    /// Create a new mock AES engine with a fixed key for testing.
+    /// Create a new mock AES engine with a fixed test key.
     pub fn new() -> Self {
-        let mut engine = Self {
-            round_keys: [[0u8; 16]; 11],
-        };
         let test_key = [
             0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6,
             0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c,
         ];
-        engine.round_keys[0] = test_key;
-        engine
+        Self {
+            round_keys: crate::aes::expand_key(&test_key),
+        }
     }
 }
 
@@ -40,9 +39,20 @@ impl Default for MockAesEngine {
 
 impl Aes for MockAesEngine {
     fn encrypt_block(&mut self, block: &mut [u8; 16]) {
-        for (b, k) in block.iter_mut().zip(self.round_keys[0].iter()) {
-            *b ^= k;
+        crate::aes::add_round_key(block, &self.round_keys[0]);
+        for round in 1..10 {
+            for byte in block.iter_mut() {
+                *byte = crate::aes::aes_sbox(*byte);
+            }
+            crate::aes::shift_rows(block);
+            crate::aes::mix_columns(block);
+            crate::aes::add_round_key(block, &self.round_keys[round]);
         }
+        for byte in block.iter_mut() {
+            *byte = crate::aes::aes_sbox(*byte);
+        }
+        crate::aes::shift_rows(block);
+        crate::aes::add_round_key(block, &self.round_keys[10]);
     }
 }
 
