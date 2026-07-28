@@ -10,6 +10,7 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
+esp-hal = { workspace = true, optional = true }
 
 # No dev-dependencies: token construction currently takes no inputs (see
 # tokens.rs), so there is nothing proptest can usefully fuzz yet. Add
@@ -18,6 +19,15 @@ workspace = true
 [features]
 default = []
 mock = []
+# Wires `SleepController::enter_deep_sleep` to the real esp-hal RTC deep-sleep
+# instruction (`Rtc::sleep_deep`) instead of the host-only placeholder.
+# Requires selecting exactly one chip feature below, mirroring
+# `tpt-e-typestate-hal`'s use_esp_hal/chip-feature-forwarding pattern.
+use_esp_hal = ["esp-hal"]
+esp32 = ["esp-hal/esp32"]
+esp32s3 = ["esp-hal/esp32s3"]
+esp32c3 = ["esp-hal/esp32c3"]
+esp32c6 = ["esp-hal/esp32c6"]
 
 [[example]]
 name = "sleep_cycle"

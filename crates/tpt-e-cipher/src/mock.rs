@@ -3,8 +3,9 @@
 //! **Note**: The mock AES is NOT constant-time. It is for logic testing only.
 //! Timing analysis must be performed against the hardware implementation.
 
+use crate::ecc::{P256Ecc, PrivateKey, PublicKey, Signature};
 use crate::sha256_core::Sha256Core;
-use crate::traits::{Aes, Sha256};
+use crate::traits::{Aes, Ecc, Sha256};
 
 /// Mock AES engine for host-side logic testing.
 ///
@@ -84,5 +85,35 @@ impl Sha256 for MockSha256Engine {
 
     fn finalize(self) -> [u8; 32] {
         self.core.finalize()
+    }
+}
+
+/// Mock P-256 ECDSA engine for host-side testing.
+///
+/// Thin delegating wrapper around [`crate::ecc::P256Ecc`] — added to mirror
+/// the `Engine`/`Mock*Engine` split used for AES and SHA-256. Unlike those
+/// two, there is not yet a separate hardware-backed `Ecc` implementation,
+/// so `MockP256Ecc` and `P256Ecc` are behaviorally identical (both software,
+/// both not constant-time — see `crate::ecc`'s module docs). This exists
+/// purely so callers that generically pick a "mock" backend by name have a
+/// symmetrical `MockP256Ecc` alongside `MockAesEngine`/`MockSha256Engine`.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MockP256Ecc;
+
+impl Ecc for MockP256Ecc {
+    type PublicKey = PublicKey;
+    type PrivateKey = PrivateKey;
+    type Signature = Signature;
+
+    fn keygen(&self, seed: &[u8; 32]) -> (PublicKey, PrivateKey) {
+        P256Ecc.keygen(seed)
+    }
+
+    fn sign(&self, hash: &[u8; 32], private_key: &PrivateKey) -> Signature {
+        P256Ecc.sign(hash, private_key)
+    }
+
+    fn verify(&self, hash: &[u8; 32], signature: &Signature, public_key: &PublicKey) -> bool {
+        P256Ecc.verify(hash, signature, public_key)
     }
 }

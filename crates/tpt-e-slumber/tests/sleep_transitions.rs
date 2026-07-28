@@ -35,20 +35,48 @@ fn default_controller() {
     let _controller = SleepController::default();
 }
 
-/// Verify that tokens are Copy and can be reused.
+/// Verify that tokens are linear (not Copy) — consuming a token invalidates
+/// the original binding. This is the intended behavior: a token obtained when
+/// a precondition held cannot be duplicated and reused after the precondition
+/// is no longer satisfied.
+///
+/// ```compile_fail
+/// use tpt_e_slumber::tokens::DmaParkedToken;
+///
+/// let token = DmaParkedToken::mock();
+/// let _moved = token;
+/// let _ = token; // ERROR: use of moved value
+/// ```
+///
+/// ```compile_fail
+/// use tpt_e_slumber::tokens::RtcIsolatedToken;
+///
+/// let token = RtcIsolatedToken::mock();
+/// let _moved = token;
+/// let _ = token; // ERROR: use of moved value
+/// ```
+///
+/// ```compile_fail
+/// use tpt_e_slumber::tokens::BuffersFlushedToken;
+///
+/// let token = BuffersFlushedToken::mock();
+/// let _moved = token;
+/// let _ = token; // ERROR: use of moved value
+/// ```
 #[test]
-fn tokens_are_copy() {
+fn tokens_are_linear() {
+    // Smoke-test: tokens can be created and moved, but not copied.
     let dma = DmaParkedToken::mock();
     let rtc = RtcIsolatedToken::mock();
     let buffers = BuffersFlushedToken::mock();
 
-    // All tokens should be Copy, allowing them to be used multiple times
-    let dma2 = dma;
-    let rtc2 = rtc;
-    let buffers2 = buffers;
+    // Move into a new binding — this consumes the original.
+    let dma = dma;
+    let rtc = rtc;
+    let buffers = buffers;
 
-    // Verify original and copy are both valid
-    let _ = (dma, dma2, rtc, rtc2, buffers, buffers2);
+    // Verify the moved values exist.
+    let _ = (dma, rtc, buffers);
 }
 
 /// Verify that tokens are Debug-printable.

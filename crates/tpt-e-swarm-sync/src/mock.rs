@@ -53,6 +53,9 @@ impl Link {
 pub struct SimulatedNetwork {
     nodes: heapless::Vec<MeshNode, 16>,
     links: heapless::Vec<(u32, u32, Link), 32>,
+    /// State for the deterministic mock PRNG used to roll drop-rate checks.
+    /// Not cryptographically secure — this is a test-only network simulator.
+    rng_state: u32,
 }
 
 impl SimulatedNetwork {
@@ -61,7 +64,42 @@ impl SimulatedNetwork {
         Self {
             nodes: heapless::Vec::new(),
             links: heapless::Vec::new(),
+            rng_state: 0x9E37_79B9, // arbitrary nonzero seed
         }
+    }
+
+    /// Advance the mock PRNG and return a value in `0..1000` (permille).
+    fn next_permille(&mut self) -> u32 {
+        // xorshift32 — deterministic and NOT cryptographically secure;
+        // sufficient for reproducible drop-rate simulation in tests.
+        let mut x = self.rng_state;
+        x ^= x << 13;
+        x ^= x >> 17;
+        x ^= x << 5;
+        self.rng_state = x;
+        x % 1000
+    }
+
+    /// Whether a message from `from` to `to` should be delivered right now:
+    /// the link must be active (not partitioned) and must not be dropped by
+    /// its configured `drop_rate`.
+    fn link_allows_delivery(&mut self, from: u32, to: u32) -> bool {
+        let mut active = true;
+        let mut drop_rate = 0u32;
+        for (a, b, link) in self.links.iter() {
+            if *a == from && *b == to {
+                active = link.active.load(Ordering::Relaxed);
+                drop_rate = link.drop_rate.load(Ordering::Relaxed);
+                break;
+            }
+        }
+        if !active {
+            return false;
+        }
+        if drop_rate == 0 {
+            return true;
+        }
+        self.next_permille() >= drop_rate
     }
 
     /// Add a node with the given ID to the network.
@@ -89,8 +127,17 @@ impl SimulatedNetwork {
     }
 
     /// Send a heartbeat message from one node to another.
+    ///
+    /// Respects the link's partition state and configured drop rate: a
+    /// message across a partitioned (`partition()`-deactivated) link, or one
+    /// unlucky enough to roll below `set_drop_rate`'s permille threshold, is
+    /// silently dropped — same as a real lossy/partitioned radio link.
     pub fn send_heartbeat(&mut self, from: u32, to: u32) {
+        if !self.link_allows_delivery(from, to) {
+            return;
+        }
         let msg = Message {
+            sender_id: from,
             sequence: from as u64,
             msg_type: MessageType::Heartbeat,
             payload: [0u8; 256],

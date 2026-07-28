@@ -25,6 +25,8 @@
 //! let _ = loan;
 //! ```
 
+#![allow(unsafe_code)]
+
 use core::fmt;
 use crate::ring_buf::RingBuf;
 
@@ -122,7 +124,11 @@ impl<'a, T, const CAP: usize> DmaLoan<'a, T, CAP> {
 /// let mut ring = RingBuf::<u32, 4>::new(0);
 /// let _ = ring.push(42);
 ///
+/// // Drive the channel through Idle → Configured → Transferring
+/// static mut DMA_BUF: [u8; 16] = [0u8; 16];
 /// let channel = DmaChannel::<_, tpt_e_typestate_hal::mock::MockDmaChannel>::mock(0);
+/// let channel = unsafe { channel.configure(&mut DMA_BUF, 16) };
+/// let channel = channel.start();
 /// let mut ring = unsafe { transfer_with_dma(&mut ring, channel) };
 /// assert_eq!(ring.pop(), Some(42));
 /// ```

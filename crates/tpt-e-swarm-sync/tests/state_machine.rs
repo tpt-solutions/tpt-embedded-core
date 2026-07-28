@@ -27,7 +27,7 @@ fn unknown_to_primary() {
 #[test]
 fn unknown_to_secondary() {
     let mut sm = MeshStateMachine::new(1);
-    let t = sm.process_event(Event::HeartbeatReceived);
+    let t = sm.process_event(Event::HeartbeatReceived { sender_id: 2 });
     assert_eq!(t.new_role, NodeRole::Secondary);
     assert!(!t.should_broadcast);
     assert_eq!(sm.role(), NodeRole::Secondary);
@@ -38,32 +38,75 @@ fn unknown_to_secondary() {
 #[test]
 fn secondary_to_primary_on_timeout() {
     let mut sm = MeshStateMachine::new(1);
-    let _ = sm.process_event(Event::HeartbeatReceived);
+    let _ = sm.process_event(Event::HeartbeatReceived { sender_id: 2 });
     let t = sm.process_event(Event::HeartbeatTimeout);
     assert_eq!(t.new_role, NodeRole::Primary);
     assert!(t.should_broadcast);
     assert!(sm.is_consistent());
 }
 
-/// Test Primary → Secondary on higher priority node.
+/// Test Primary → Secondary on higher priority node (lower ID).
 #[test]
 fn primary_yields_to_higher_priority() {
     let mut sm = MeshStateMachine::new(2);
     let _ = sm.process_event(Event::NoOtherNodesFound);
-    let t = sm.process_event(Event::HigherPriorityNodeFound);
+    let t = sm.process_event(Event::HigherPriorityNodeFound { candidate_id: 1 });
     assert_eq!(t.new_role, NodeRole::Secondary);
     assert!(t.should_broadcast);
     assert!(sm.is_consistent());
 }
 
+/// Test Primary ignores lower-priority candidate (higher ID).
+#[test]
+fn primary_ignores_lower_priority() {
+    let mut sm = MeshStateMachine::new(1);
+    let _ = sm.process_event(Event::NoOtherNodesFound);
+    let t = sm.process_event(Event::HigherPriorityNodeFound { candidate_id: 2 });
+    assert_eq!(t.new_role, NodeRole::Primary);
+    assert!(!t.should_broadcast);
+    assert!(sm.is_consistent());
+}
+
+/// Test Primary ignores equal-priority candidate (same ID).
+#[test]
+fn primary_ignores_equal_priority() {
+    let mut sm = MeshStateMachine::new(1);
+    let _ = sm.process_event(Event::NoOtherNodesFound);
+    let t = sm.process_event(Event::HigherPriorityNodeFound { candidate_id: 1 });
+    assert_eq!(t.new_role, NodeRole::Primary);
+    assert!(!t.should_broadcast);
+    assert!(sm.is_consistent());
+}
+
+/// Test Primary yields to lower-ID heartbeat after partition heal.
+#[test]
+fn primary_yields_to_lower_id_heartbeat() {
+    let mut sm = MeshStateMachine::new(5);
+    let _ = sm.process_event(Event::NoOtherNodesFound);
+    // Heartbeat from node 3 (lower ID = higher priority)
+    let t = sm.process_event(Event::HeartbeatReceived { sender_id: 3 });
+    assert_eq!(t.new_role, NodeRole::Secondary);
+    assert!(sm.primary_id() == Some(3));
+    assert!(sm.is_consistent());
+}
+
+/// Test Primary ignores higher-ID heartbeat.
+#[test]
+fn primary_ignores_higher_id_heartbeat() {
+    let mut sm = MeshStateMachine::new(1);
+    let _ = sm.process_event(Event::NoOtherNodesFound);
+    let t = sm.process_event(Event::HeartbeatReceived { sender_id: 5 });
+    assert_eq!(t.new_role, NodeRole::Primary);
+    assert!(!t.should_broadcast);
+    assert!(sm.is_consistent());
+}
+
 /// Test partition detection does not itself promote a Secondary — only the
-/// subsequent heartbeat timeout does. Immediately self-promoting on
-/// partition detection let every stranded Secondary in a multi-node
-/// partition become Primary independently (see state_machine.rs comment).
+/// subsequent heartbeat timeout does.
 #[test]
 fn partition_detection_secondary() {
     let mut sm = MeshStateMachine::new(1);
-    let _ = sm.process_event(Event::HeartbeatReceived);
+    let _ = sm.process_event(Event::HeartbeatReceived { sender_id: 100 });
     let t = sm.process_event(Event::PartitionDetected);
     assert_eq!(t.new_role, NodeRole::Secondary);
     assert!(sm.is_consistent());
@@ -73,15 +116,14 @@ fn partition_detection_secondary() {
     assert!(sm.is_consistent());
 }
 
-/// Test that multiple Secondaries stranded together by the same partition
-/// do not simultaneously self-promote to Primary on detection alone — this
-/// is the divergence bug the state machine exists to prevent.
+/// Test that multiple Secondaries stranded together do not simultaneously
+/// self-promote on partition detection alone.
 #[test]
 fn partition_does_not_cause_simultaneous_dual_primary() {
     let mut a = MeshStateMachine::new(1);
     let mut b = MeshStateMachine::new(2);
-    let _ = a.process_event(Event::HeartbeatReceived);
-    let _ = b.process_event(Event::HeartbeatReceived);
+    let _ = a.process_event(Event::HeartbeatReceived { sender_id: 100 });
+    let _ = b.process_event(Event::HeartbeatReceived { sender_id: 100 });
 
     let ta = a.process_event(Event::PartitionDetected);
     let tb = b.process_event(Event::PartitionDetected);
@@ -119,10 +161,10 @@ fn shutdown_transitions_to_unknown() {
 fn consistency_invariant_always_holds() {
     let mut sm = MeshStateMachine::new(1);
     let events = [
-        Event::HeartbeatReceived,
+        Event::HeartbeatReceived { sender_id: 2 },
         Event::HeartbeatTimeout,
-        Event::HigherPriorityNodeFound,
-        Event::HeartbeatReceived,
+        Event::HigherPriorityNodeFound { candidate_id: 2 },
+        Event::HeartbeatReceived { sender_id: 3 },
         Event::PartitionDetected,
         Event::PartitionHealed,
         Event::HeartbeatTimeout,

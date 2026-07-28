@@ -1,4 +1,5 @@
 //! Safe ISR abstractions.
+#![allow(unsafe_code)]
 
 #[cfg(feature = "mock")]
 use crate::mock::MockIsrGuard;

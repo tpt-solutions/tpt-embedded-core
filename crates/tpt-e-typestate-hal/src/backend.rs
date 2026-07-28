@@ -11,6 +11,8 @@
 //! for register access. These unsafe blocks are isolated in the backend implementations
 //! and must adhere to the documented safety invariants.
 
+#![allow(unsafe_code)]
+
 /// Trait for DMA channel operations in the Idle state.
 pub trait IdleOps {
     /// The type returned after configuration.
@@ -39,14 +41,24 @@ pub trait TransferringOps {
 }
 
 /// Trait for ISR registration operations.
-pub trait IsrOps {
+///
+/// Generic over the handler type `F` at the *trait* level (not the method
+/// level): an implementor is a concrete guard type for one particular `F`
+/// (e.g. `MockIsrGuard<F>`, `EspHalIsrGuard<F>`), which is the shape ISR
+/// guards in this crate actually take. A method-level `fn register<F: Fn()>(..)
+/// -> Self` (the crate's original design) can't be implemented by either
+/// guard, since `Self` would need to vary with `F` — this is why, until this
+/// fix, the trait existed but had zero implementors and the guards used
+/// unrelated inherent constructors (`MockIsrGuard::new`,
+/// `EspHalIsrGuard::new`) instead.
+pub trait IsrOps<F: Fn()>: Sized {
     /// Register an ISR handler. The provided closure is called on each interrupt.
     ///
     /// # Safety
     ///
     /// The caller must ensure the closure is suitable for ISR context
     /// (no blocking, no allocation, bounded execution time).
-    unsafe fn register<F: Fn()>(handler: F) -> Self;
+    unsafe fn register(handler: F) -> Self;
 }
 
 /// Esp-hal backend for real hardware (conditional on `use_esp_hal` feature).
@@ -117,6 +129,15 @@ impl<F: Fn()> EspHalIsrGuard<F> {
     pub unsafe fn new(handler: F) -> Self {
         // TODO: Implement actual esp-hal ISR registration
         Self { _handler: handler }
+    }
+}
+
+#[cfg(feature = "use_esp_hal")]
+impl<F: Fn()> IsrOps<F> for EspHalIsrGuard<F> {
+    unsafe fn register(handler: F) -> Self {
+        // SAFETY: forwards the same precondition `register`'s caller must
+        // uphold (closure suitable for ISR context) to `Self::new`.
+        unsafe { Self::new(handler) }
     }
 }
 

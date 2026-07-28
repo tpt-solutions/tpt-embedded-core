@@ -26,3 +26,4 @@
 
 - [Contributing](./contributing.md)
 - [CI Pipeline](./ci-pipeline.md)
+- [Formal Verification Tooling](./formal-verification.md)

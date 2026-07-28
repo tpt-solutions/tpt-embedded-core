@@ -33,12 +33,18 @@ pub enum NodeRole {
 /// Events that drive the state machine.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
-    /// A heartbeat was received from the current Primary.
-    HeartbeatReceived,
+    /// A heartbeat was received from another node.
+    HeartbeatReceived {
+        /// The node ID of the sender.
+        sender_id: u32,
+    },
     /// No heartbeat received within the timeout period.
     HeartbeatTimeout,
     /// A higher-priority node was discovered during election.
-    HigherPriorityNodeFound,
+    HigherPriorityNodeFound {
+        /// The node ID of the candidate.
+        candidate_id: u32,
+    },
     /// No other nodes found during mesh discovery.
     NoOtherNodesFound,
     /// A network partition was detected (cannot reach Primary).
@@ -99,11 +105,16 @@ impl MeshStateMachine {
     }
 
     /// Process an event and return the resulting transition.
+    ///
+    /// The election protocol uses deterministic tie-breaking: a lower `node_id`
+    /// has higher priority. A Primary yields only to a genuinely higher-priority
+    /// (lower-ID) node, preventing split-brain after partition heal.
     pub fn process_event(&mut self, event: Event) -> Transition {
         match (self.role, event) {
-            // Unknown → discovered mesh with Primary
-            (NodeRole::Unknown, Event::HeartbeatReceived) => {
+            // Unknown → discovered mesh via heartbeat from some node
+            (NodeRole::Unknown, Event::HeartbeatReceived { sender_id }) => {
                 self.role = NodeRole::Secondary;
+                self.primary_id = Some(sender_id);
                 Transition { new_role: NodeRole::Secondary, should_broadcast: false }
             }
             // Unknown → no other nodes, become Primary
@@ -116,28 +127,40 @@ impl MeshStateMachine {
             (NodeRole::Unknown, Event::HeartbeatTimeout) => {
                 Transition { new_role: NodeRole::Unknown, should_broadcast: false }
             }
-            (NodeRole::Unknown, Event::HigherPriorityNodeFound) => {
+            (NodeRole::Unknown, Event::HigherPriorityNodeFound { .. }) => {
                 Transition { new_role: NodeRole::Unknown, should_broadcast: false }
             }
-            // Primary receiving heartbeat (self-heartbeat or stale) — no change
-            (NodeRole::Primary, Event::HeartbeatReceived) => {
-                Transition { new_role: NodeRole::Primary, should_broadcast: false }
+            // Primary receiving heartbeat: yield only if sender is genuinely
+            // higher-priority (lower node ID). This is the key reconciliation
+            // path after a partition heals — the lowest-ID Primary survives.
+            (NodeRole::Primary, Event::HeartbeatReceived { sender_id }) => {
+                if sender_id < self.node_id {
+                    self.role = NodeRole::Secondary;
+                    self.primary_id = Some(sender_id);
+                    Transition { new_role: NodeRole::Secondary, should_broadcast: true }
+                } else {
+                    Transition { new_role: NodeRole::Primary, should_broadcast: false }
+                }
             }
             // Primary — heartbeat timeout means this node should still be Primary
             (NodeRole::Primary, Event::HeartbeatTimeout) => {
                 Transition { new_role: NodeRole::Primary, should_broadcast: true }
             }
-            // Primary — higher priority node found, yield
-            (NodeRole::Primary, Event::HigherPriorityNodeFound) => {
-                self.role = NodeRole::Secondary;
-                // Clear primary_id — we no longer know who the Primary is
-                // (it's the higher-priority node, but we use None for consistency
-                // since Secondary's invariant is primary_id != Some(self.node_id))
-                self.primary_id = None;
-                Transition { new_role: NodeRole::Secondary, should_broadcast: true }
+            // Primary — higher priority node found, yield only if genuinely
+            // higher-priority (lower node ID). Prevents spoofing by a
+            // malicious or confused peer with a higher ID.
+            (NodeRole::Primary, Event::HigherPriorityNodeFound { candidate_id }) => {
+                if candidate_id < self.node_id {
+                    self.role = NodeRole::Secondary;
+                    self.primary_id = Some(candidate_id);
+                    Transition { new_role: NodeRole::Secondary, should_broadcast: true }
+                } else {
+                    Transition { new_role: NodeRole::Primary, should_broadcast: false }
+                }
             }
-            // Secondary — heartbeat received, all good
-            (NodeRole::Secondary, Event::HeartbeatReceived) => {
+            // Secondary — heartbeat received, update known primary
+            (NodeRole::Secondary, Event::HeartbeatReceived { sender_id }) => {
+                self.primary_id = Some(sender_id);
                 Transition { new_role: NodeRole::Secondary, should_broadcast: false }
             }
             // Secondary — heartbeat timeout, try to become Primary
@@ -146,25 +169,18 @@ impl MeshStateMachine {
                 self.primary_id = Some(self.node_id);
                 Transition { new_role: NodeRole::Primary, should_broadcast: true }
             }
-            // Secondary — higher priority node found during election
-            (NodeRole::Secondary, Event::HigherPriorityNodeFound) => {
+            // Secondary — higher priority node found during election (ignored;
+            // a Secondary already follows someone)
+            (NodeRole::Secondary, Event::HigherPriorityNodeFound { .. }) => {
                 Transition { new_role: NodeRole::Secondary, should_broadcast: false }
             }
             // Partition detected — mark partitioned but do not change role here.
-            // Promotion to Primary happens only via the HeartbeatTimeout arm
-            // below. Immediately self-promoting a Secondary on partition
-            // detection let every stranded Secondary in a multi-node partition
-            // promote itself independently on the same tick, producing multiple
-            // simultaneous Primaries — exactly the divergence this state
-            // machine exists to prevent (see module doc). Full divergence
-            // freedom across concurrent nodes still requires real cross-node
-            // tie-break/quorum logic; this only removes the single-tick
-            // self-promotion bug.
+            // Promotion to Primary happens only via the HeartbeatTimeout arm.
             (role, Event::PartitionDetected) => {
                 self.partitioned = true;
                 Transition { new_role: role, should_broadcast: false }
             }
-            // Partition healed — if we're not the real Primary, yield
+            // Partition healed
             (NodeRole::Primary, Event::PartitionHealed) => {
                 self.partitioned = false;
                 Transition { new_role: NodeRole::Primary, should_broadcast: true }

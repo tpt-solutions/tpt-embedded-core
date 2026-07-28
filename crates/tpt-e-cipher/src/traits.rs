@@ -31,8 +31,14 @@ pub trait Ecc: core::fmt::Debug {
     /// An ECDSA signature (r, s).
     type Signature: core::fmt::Debug;
 
-    /// Generate a new random key pair.
-    fn keygen(&self) -> (Self::PublicKey, Self::PrivateKey);
+    /// Generate a new key pair from caller-supplied entropy.
+    ///
+    /// # Security
+    ///
+    /// `seed` MUST come from a cryptographically secure source of
+    /// randomness. It is mapped onto a valid private scalar; a weak,
+    /// reused, or predictable seed produces a weak or predictable key.
+    fn keygen(&self, seed: &[u8; 32]) -> (Self::PublicKey, Self::PrivateKey);
 
     /// Sign a32-byte message hash using ECDSA.
     ///

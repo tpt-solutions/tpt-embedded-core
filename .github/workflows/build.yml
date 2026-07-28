@@ -40,6 +40,7 @@ jobs:
       # triple and the esp-hal chip feature both vary per leg (previously
       # this ran the identical host-target command 4 times).
       - run: cargo build -p tpt-e-typestate-hal --target ${{ matrix.target }} --features "use_esp_hal,${{ matrix.chip }}"
+      - run: cargo build -p tpt-e-slumber --target ${{ matrix.target }} --features "use_esp_hal,${{ matrix.chip }}"
       - run: cargo build --workspace --features mock
 
   build-default-features:

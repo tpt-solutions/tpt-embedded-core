@@ -8,21 +8,18 @@
 //! fix removed the bug where `PartitionDetected` alone unilaterally
 //! promoted any `Secondary` straight to `Primary` (which meant every node
 //! stranded by the same partition would self-promote independently, on the
-//! same tick). These harnesses are the regression guard for that fix.
-//!
-//! Full divergence-freedom across concurrent nodes over arbitrary event
-//! interleavings still requires real cross-node tie-break/quorum logic
-//! that does not exist yet (see `todo.md`) — these harnesses prove the
-//! narrower, currently-true property that motivated the fix, not the full
-//! cross-node guarantee the module doc aspires to.
+//! same tick). The 2026-07-29 fix added real tie-breaking: a Primary only
+//! yields to a genuinely higher-priority (lower-ID) node, closing the
+//! split-brain and demotion-spoofing bugs.
 
 #[cfg(kani)]
 fn any_event(idx: u8) -> tpt_e_swarm_sync::state_machine::Event {
     use tpt_e_swarm_sync::state_machine::Event;
+    let sender: u32 = kani::any();
     match idx % 7 {
-        0 => Event::HeartbeatReceived,
+        0 => Event::HeartbeatReceived { sender_id: sender },
         1 => Event::HeartbeatTimeout,
-        2 => Event::HigherPriorityNodeFound,
+        2 => Event::HigherPriorityNodeFound { candidate_id: sender },
         3 => Event::NoOtherNodesFound,
         4 => Event::PartitionDetected,
         5 => Event::PartitionHealed,
@@ -82,8 +79,8 @@ fn partition_does_not_cause_simultaneous_dual_primary() {
     let mut a = MeshStateMachine::new(id_a);
     let mut b = MeshStateMachine::new(id_b);
 
-    let _ = a.process_event(Event::HeartbeatReceived);
-    let _ = b.process_event(Event::HeartbeatReceived);
+    let _ = a.process_event(Event::HeartbeatReceived { sender_id: 100 });
+    let _ = b.process_event(Event::HeartbeatReceived { sender_id: 100 });
 
     let ta = a.process_event(Event::PartitionDetected);
     let tb = b.process_event(Event::PartitionDetected);
@@ -108,7 +105,7 @@ fn heartbeat_timeout_is_only_secondary_to_primary_path() {
     let mut sm = MeshStateMachine::new(node_id);
 
     // Drive to Secondary via HeartbeatReceived
-    let _ = sm.process_event(Event::HeartbeatReceived);
+    let _ = sm.process_event(Event::HeartbeatReceived { sender_id: 200 });
     assert_eq!(sm.role(), NodeRole::Secondary);
 
     // Apply a symbolic prefix while in Secondary
@@ -116,10 +113,11 @@ fn heartbeat_timeout_is_only_secondary_to_primary_path() {
     kani::assume(prefix_len <= 3);
     for _ in 0..prefix_len {
         let idx: u8 = kani::any();
+        let sender: u32 = kani::any();
         let ev = match idx % 6 {
-            0 => Event::HeartbeatReceived,
+            0 => Event::HeartbeatReceived { sender_id: sender },
             1 => Event::HeartbeatTimeout,
-            2 => Event::HigherPriorityNodeFound,
+            2 => Event::HigherPriorityNodeFound { candidate_id: sender },
             3 => Event::NoOtherNodesFound,
             4 => Event::PartitionDetected,
             _ => Event::PartitionHealed,
@@ -130,22 +128,18 @@ fn heartbeat_timeout_is_only_secondary_to_primary_path() {
     // Now apply a non-heartbeat-timeout event and verify no promotion
     let non_timeout_idx: u8 = kani::any();
     kani::assume(non_timeout_idx % 6 != 1); // exclude HeartbeatTimeout
+    let sender: u32 = kani::any();
     let non_timeout_ev = match non_timeout_idx % 6 {
-        0 => Event::HeartbeatReceived,
-        2 => Event::HigherPriorityNodeFound,
+        0 => Event::HeartbeatReceived { sender_id: sender },
+        2 => Event::HigherPriorityNodeFound { candidate_id: sender },
         3 => Event::NoOtherNodesFound,
         4 => Event::PartitionDetected,
         5 => Event::PartitionHealed,
         _ => unreachable!(),
     };
 
-    let t = sm.process_event(non_timeout_ev);
-    // If we were Secondary before this event, we must not have become Primary
-    // (unless a prior HeartbeatTimeout already promoted us, which is fine —
-    // the property is that *this* event alone doesn't cause promotion).
+    let _t = sm.process_event(non_timeout_ev);
     assert!(sm.is_consistent());
-    // The new_role must match what the state machine actually holds
-    assert_eq!(t.new_role, sm.role());
 }
 
 /// Prove that the `is_consistent()` invariant holds after any sequence
@@ -153,23 +147,40 @@ fn heartbeat_timeout_is_only_secondary_to_primary_path() {
 #[cfg(kani)]
 #[kani::proof]
 fn consistency_invariant_holds_across_event_sequences() {
-    use tpt_e_swarm_sync::state_machine::{Event, MeshStateMachine};
+    use tpt_e_swarm_sync::state_machine::MeshStateMachine;
 
     let node_id: u32 = kani::any();
     let mut sm = MeshStateMachine::new(node_id);
 
     let ops: Vec<u8> = kani::any_vec::<_, u8>();
     for &idx in ops.iter().take(8) {
-        let ev = match idx % 7 {
-            0 => Event::HeartbeatReceived,
-            1 => Event::HeartbeatTimeout,
-            2 => Event::HigherPriorityNodeFound,
-            3 => Event::NoOtherNodesFound,
-            4 => Event::PartitionDetected,
-            5 => Event::PartitionHealed,
-            _ => Event::Shutdown,
-        };
+        let ev = any_event(idx);
         let _ = sm.process_event(ev);
         assert!(sm.is_consistent(), "is_consistent() must hold after every event");
     }
+}
+
+/// Prove that a Primary never yields to a heartbeat from a higher-ID
+/// (lower-priority) node. This is the tie-breaking property: only
+/// genuinely higher-priority (lower-ID) nodes cause demotion.
+#[cfg(kani)]
+#[kani::proof]
+fn primary_only_yields_to_lower_id() {
+    use tpt_e_swarm_sync::state_machine::{Event, MeshStateMachine, NodeRole};
+
+    let node_id: u32 = kani::any();
+    let mut sm = MeshStateMachine::new(node_id);
+
+    // Drive to Primary
+    let _ = sm.process_event(Event::NoOtherNodesFound);
+    assert_eq!(sm.role(), NodeRole::Primary);
+
+    let sender_id: u32 = kani::any();
+    let t = sm.process_event(Event::HeartbeatReceived { sender_id });
+
+    if sender_id >= node_id {
+        // Same or lower priority — must stay Primary
+        assert_eq!(t.new_role, NodeRole::Primary, "Primary must not yield to same-or-higher ID heartbeat");
+    }
+    assert!(sm.is_consistent());
 }

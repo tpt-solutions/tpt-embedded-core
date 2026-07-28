@@ -35,3 +35,47 @@ All contributions must adhere to the **TPT Standard** outlined in the project sp
 - [ ] Code compiles with `deny(unsafe_code)` and no warnings
 - [ ] Public API is documented with rustdoc, including safety invariants where applicable
 - [ ] `#![warn(missing_docs, missing_debug_implementations, missing_copy_implementations)]` is enabled
+
+## Crate Dependency Graph & Versioning Policy
+
+`tpt-e-typestate-hal` is foundational; breaking changes to it can ripple
+through the rest of the workspace. The current internal dependency graph:
+
+```
+tpt-e-typestate-hal   (no internal deps — foundational)
+        ^  ^
+        |  |
+        |  +---- tpt-e-cipher      (optional dev-dep, for the DMA+crypto
+        |                           integration test only — not a
+        |                           production dependency)
+        +------- tpt-e-chronos     (optional prod dep, for DMA handoff)
+                        ^
+                        |
+                 tpt-e-swarm-sync  (required prod dep, for ring-buffer
+                                    message queuing)
+
+tpt-e-slumber   (no internal deps — standalone)
+```
+
+All internal deps are currently `path`-only (no `version` key), which only
+resolves within this workspace. This is fine pre-publish, but is itself a
+concrete blocker for the still-open "public release checklist" item: cargo
+requires a `version` alongside `path` for a dependency to resolve once the
+depending crate is published to crates.io, so path-only internal deps must
+gain version constraints as part of that checklist, not before.
+
+Versioning policy while all crates share the workspace-synced `0.1.0`
+(see README's "Versioning & Publishing" section for the synchronized vs.
+independent-post-stabilization split):
+
+- A change to `tpt-e-typestate-hal`'s public API (traits in `backend.rs`,
+  the `DmaChannel` typestate chain, `IsrGuard`) that breaks any downstream
+  crate is caught immediately by `build-default-features` and the
+  `--features mock` build jobs in CI (`build.yml`/`test.yml`) — both build
+  every crate in the workspace, so a breaking change anywhere fails CI at
+  the same PR, not silently downstream later.
+- Because of that CI coverage, there is currently no separate manual
+  "bump the dependents" step to remember: a PR that breaks a downstream
+  crate simply won't pass CI until the downstream usage is updated in the
+  same PR. This section exists to make that dependency shape (and the
+  path-only-deps caveat above) explicit, not to add new process.

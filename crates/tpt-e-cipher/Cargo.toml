@@ -13,6 +13,9 @@ workspace = true
 
 [dev-dependencies]
 proptest = { workspace = true }
+# Dev-only: exercises the Phase 3 exit-criteria integration test (DMA handle
+# feeding a crypto operation). Not a production dependency of this crate.
+tpt-e-typestate-hal = { path = "../tpt-e-typestate-hal", features = ["mock"] }
 
 [features]
 default = []

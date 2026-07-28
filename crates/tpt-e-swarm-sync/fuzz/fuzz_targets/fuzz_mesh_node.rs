@@ -27,7 +27,7 @@ fuzz_target!(|data: &[u8]| {
         let copy_len = (chunk.len() - 9).min(256);
         payload[..copy_len].copy_from_slice(&chunk[9..9 + copy_len]);
 
-        let msg = Message { sequence, msg_type, payload };
+        let msg = Message { sender_id: 0, sequence, msg_type, payload };
         let _ = node.receive_message(msg);
 
         while let Some(_event) = node.process_inbound() {

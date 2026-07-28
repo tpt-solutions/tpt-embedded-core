@@ -2,7 +2,7 @@
 
 #![allow(missing_docs)]
 
-use tpt_e_cipher::traits::{Aes, Sha256};
+use tpt_e_cipher::traits::{Aes, Ecc, Sha256};
 
 /// Test that mock AES engine can encrypt a block.
 #[test]
@@ -28,6 +28,19 @@ fn mock_aes_deterministic() {
     engine2.encrypt_block(&mut block2);
 
     assert_eq!(block1, block2);
+}
+
+/// `MockP256Ecc` must round-trip sign/verify identically to `P256Ecc`,
+/// proving it's a genuine (if delegating) `Ecc` implementation and not
+/// just a type alias that happens to compile.
+#[test]
+fn mock_ecc_sign_verify_round_trip() {
+    let ecc = tpt_e_cipher::mock::MockP256Ecc;
+    let seed = [7u8; 32];
+    let (pk, sk) = ecc.keygen(&seed);
+    let hash = [0x99u8; 32];
+    let sig = ecc.sign(&hash, &sk);
+    assert!(ecc.verify(&hash, &sig, &pk), "MockP256Ecc round-trip must verify");
 }
 
 /// Test that mock AES encryption changes the block.

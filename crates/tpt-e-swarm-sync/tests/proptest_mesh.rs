@@ -7,10 +7,11 @@ use tpt_e_swarm_sync::state_machine::{Event, MeshStateMachine, NodeRole};
 
 /// Simple PRNG for generating random events in proptest.
 fn simple_rng(seed: u32) -> Event {
+    let sender = seed.wrapping_mul(7).wrapping_add(1); // deterministic sender ID from seed
     match seed % 7 {
-        0 => Event::HeartbeatReceived,
+        0 => Event::HeartbeatReceived { sender_id: sender },
         1 => Event::HeartbeatTimeout,
-        2 => Event::HigherPriorityNodeFound,
+        2 => Event::HigherPriorityNodeFound { candidate_id: sender },
         3 => Event::NoOtherNodesFound,
         4 => Event::PartitionDetected,
         5 => Event::PartitionHealed,

@@ -17,7 +17,7 @@ fn main() {
     println!("node_a -> {:?} (broadcast: {})", t.new_role, t.should_broadcast);
 
     // Node B hears node A's heartbeat and becomes Secondary.
-    let t = node_b.process_event(Event::HeartbeatReceived);
+    let t = node_b.process_event(Event::HeartbeatReceived { sender_id: 1 });
     println!("node_b -> {:?} (broadcast: {})", t.new_role, t.should_broadcast);
 
     assert_eq!(node_a.role(), NodeRole::Primary);

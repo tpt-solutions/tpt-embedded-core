@@ -1,5 +1,5 @@
 #![no_std]
-#![allow(unsafe_code)]
+#![deny(unsafe_code)]
 #![warn(missing_docs, missing_debug_implementations, missing_copy_implementations)]
 
 //! `tpt-e-chronos`

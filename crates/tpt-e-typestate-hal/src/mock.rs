@@ -1,6 +1,6 @@
 //! Mock implementations for host-side testing.
 
-use crate::backend::{IdleOps, ConfiguredOps, TransferringOps};
+use crate::backend::{IdleOps, ConfiguredOps, TransferringOps, IsrOps};
 
 /// A mock DMA channel for host-side testing.
 #[derive(Debug, Copy, Clone)]
@@ -68,5 +68,15 @@ impl<F: Fn()> MockIsrGuard<F> {
 impl<F: Fn()> Drop for MockIsrGuard<F> {
     fn drop(&mut self) {
         // Mock implementation: nothing to clean up
+    }
+}
+
+impl<F: Fn()> IsrOps<F> for MockIsrGuard<F> {
+    // `unsafe` only because the `IsrOps` trait's method signature requires
+    // it (to match the real esp-hal backend's safety contract) — the mock
+    // body itself performs no unsafe operation.
+    #[allow(unsafe_code)]
+    unsafe fn register(handler: F) -> Self {
+        Self::new(handler)
     }
 }

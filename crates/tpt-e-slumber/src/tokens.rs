@@ -9,12 +9,27 @@
 //! The `SleepController::enter_deep_sleep` method requires all tokens as
 //! parameters. If any token is missing, the code fails to compile — not at
 //! runtime. This is the core compile-time safety guarantee of `tpt-e-slumber`.
+//!
+//! # Linear type
+//!
+//! Tokens do **not** implement `Copy` or `Clone`. Once consumed (e.g. by
+//! `enter_deep_sleep` or `try_sleep`), a token cannot be reused. Attempting
+//! to derive `Copy` on a token will fail because the trait is not implemented.
 
 /// Token proving DMA has been safely parked.
 ///
 /// Issued by `tpt-e-typestate-hal` when all DMA channels are in the `Complete`
 /// or `Idle` state and no transfers are in progress.
-#[derive(Debug, Copy, Clone)]
+///
+/// # Linear type
+///
+/// This token does **not** implement `Copy` or `Clone`. Once consumed (e.g. by
+/// `enter_deep_sleep` or `try_sleep`), it cannot be reused. This prevents a
+/// token obtained when a precondition held from being duplicated and later used
+/// after the precondition was invalidated (e.g. DMA restarted after a
+/// `DmaParkedToken` was obtained).
+#[derive(Debug)]
+#[allow(missing_copy_implementations)]
 pub struct DmaParkedToken {
     _private: (),
 }
@@ -52,7 +67,13 @@ impl DmaParkedToken {
 ///
 /// Issued when RTC memory regions are properly isolated and no pending
 /// writes remain that could corrupt RTC state during sleep.
-#[derive(Debug, Copy, Clone)]
+///
+/// # Linear type
+///
+/// This token does **not** implement `Copy` or `Clone`. See
+/// [`DmaParkedToken`] for rationale.
+#[derive(Debug)]
+#[allow(missing_copy_implementations)]
 pub struct RtcIsolatedToken {
     _private: (),
 }
@@ -87,7 +108,13 @@ impl RtcIsolatedToken {
 ///
 /// Issued by the UART driver when all transmit buffers are empty and
 /// no further data will be written.
-#[derive(Debug, Copy, Clone)]
+///
+/// # Linear type
+///
+/// This token does **not** implement `Copy` or `Clone`. See
+/// [`DmaParkedToken`] for rationale.
+#[derive(Debug)]
+#[allow(missing_copy_implementations)]
 pub struct BuffersFlushedToken {
     _private: (),
 }

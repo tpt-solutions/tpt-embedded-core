@@ -2,7 +2,30 @@
 #![allow(missing_docs)]
 
 use proptest::prelude::*;
+use tpt_e_typestate_hal::backend::IsrOps;
 use tpt_e_typestate_hal::isr::IsrGuard;
+use tpt_e_typestate_hal::mock::MockIsrGuard;
+
+/// Registers a handler through the `IsrOps<F>` trait, generic over the
+/// backend `B` — exercises the trait itself (not `MockIsrGuard`'s inherent
+/// `new`), proving `MockIsrGuard<F>` genuinely implements `IsrOps<F>`.
+#[allow(unsafe_code)] // test-only: exercising an `unsafe trait fn`, not raw register access
+fn register_via_trait<F: Fn(), B: IsrOps<F>>(handler: F) -> B {
+    // SAFETY: test-only handler does no blocking/allocation.
+    unsafe { B::register(handler) }
+}
+
+#[test]
+fn mock_isr_guard_implements_isr_ops_trait() {
+    use core::sync::atomic::{AtomicBool, Ordering};
+    static CALLED: AtomicBool = AtomicBool::new(false);
+
+    let guard: MockIsrGuard<_> = register_via_trait(|| {
+        CALLED.store(true, Ordering::Relaxed);
+    });
+    guard.call();
+    assert!(CALLED.load(Ordering::Relaxed));
+}
 
 proptest! {
     #[test]

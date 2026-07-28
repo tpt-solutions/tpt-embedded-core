@@ -19,13 +19,14 @@ fn mesh_node_initial_state() {
 fn mesh_node_message_processing() {
     let mut node = MeshNode::new(1);
     let msg = Message {
+        sender_id: 42,
         sequence: 1,
         msg_type: MessageType::Heartbeat,
         payload: [0xAB; 256],
     };
     assert!(node.receive_message(msg).is_ok());
     let event = node.process_inbound();
-    assert_eq!(event, Some(Event::HeartbeatReceived));
+    assert_eq!(event, Some(Event::HeartbeatReceived { sender_id: 42 }));
 }
 
 /// Test that a mesh node can send and receive messages.
@@ -33,6 +34,7 @@ fn mesh_node_message_processing() {
 fn mesh_node_send_receive() {
     let node = MeshNode::new(1);
     let msg = Message {
+        sender_id: 2,
         sequence: 1,
         msg_type: MessageType::Heartbeat,
         payload: [0xCD; 256],
@@ -59,6 +61,7 @@ fn mesh_node_ring_buffer_under_load() {
     // Fill the outbound buffer
     for i in 0..32u64 {
         let msg = Message {
+            sender_id: 1,
             sequence: i,
             msg_type: MessageType::Data,
             payload: [i as u8; 256],
@@ -67,6 +70,7 @@ fn mesh_node_ring_buffer_under_load() {
     }
     // Buffer should be full now
     let msg = Message {
+        sender_id: 1,
         sequence: 32,
         msg_type: MessageType::Data,
         payload: [32u8; 256],

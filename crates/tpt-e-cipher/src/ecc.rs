@@ -1,13 +1,21 @@
 //! P-256 (secp256r1) ECDSA implementation.
 //!
-//! This is a software mock for host-side testing. It is **not** constant-time
-//! — the mock label explicitly covers this. For real deployments, the ECC
-//! trait should be backed by `esp-hal` crypto peripherals.
+//! This is a software implementation — no hardware ECC peripheral backend
+//! exists yet, so unlike [`crate::aes`] and [`crate::sha`] this is the
+//! crate's only `Ecc` implementation (not gated behind the `mock` feature).
+//! It is **not** constant-time: point arithmetic and scalar-bit selection
+//! branch on secret-dependent data. Do not use this where signing-timing
+//! side channels are in the threat model. For real deployments requiring
+//! timing-safety guarantees, the `Ecc` trait should eventually be backed by
+//! a constant-time (e.g. `esp-hal` hardware, or a branchless Montgomery
+//! ladder) implementation.
 //!
 //! The implementation covers:
 //! - Field arithmetic in GF(p) where p = 2^256 − 2^224 + 2^192 + 2^96 − 1
 //! - Point operations on the Weierstrass curve y² = x³ − 3x + b (mod p)
-//! - ECDSA sign and verify (FIPS 186-4)
+//! - ECDSA sign and verify (FIPS 186-4), with public-key on-curve
+//!   validation, hash-to-scalar reduction mod n, and canonical low-s
+//!   signatures (non-malleable)
 
 use crate::traits::Ecc;
 
@@ -22,7 +30,6 @@ const P: [u64; 4] = [0xFFFFFFFFFFFFFFFF, 0x00000000FFFFFFFF, 0x0000000000000000,
 const N: [u64; 4] = [0xF3B9CAC2FC632551, 0xBCE6FAADA7179E84, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFF00000000];
 
 /// Curve parameter b.
-#[allow(dead_code)]
 const B: [u64; 4] = [0x3BCE3C3E27D2604B, 0x651D06B0CC53B0F6, 0xB3EBBD55769886BC, 0x5AC635D8AA3A93E7];
 
 /// Generator point Gx coordinate.
@@ -73,6 +80,17 @@ fn u256_cmp(a: [u64; 4], b: [u64; 4]) -> core::cmp::Ordering {
 /// Check if a 256-bit number is zero.
 fn u256_is_zero(a: [u64; 4]) -> bool {
     a.iter().all(|&x| x == 0)
+}
+
+/// Right-shift a 256-bit number by 1 bit (divide by 2, rounding down).
+fn u256_shr1(a: [u64; 4]) -> [u64; 4] {
+    let mut r = [0u64; 4];
+    let mut carry = 0u64;
+    for i in (0..4).rev() {
+        r[i] = (a[i] >> 1) | (carry << 63);
+        carry = a[i] & 1;
+    }
+    r
 }
 
 // ---------------------------------------------------------------------------
@@ -141,7 +159,6 @@ fn sub_p_if_ge(r: [u64; 4]) -> [u64; 4] {
 }
 
 /// Field addition mod p.
-#[allow(dead_code)]
 fn fe_add(a: [u64; 4], b: [u64; 4]) -> [u64; 4] {
     let (sum, carry) = u256_add(a, b);
     // If there was a carry or sum >= p, subtract p
@@ -241,7 +258,6 @@ fn point_identity() -> AffinePoint {
 }
 
 /// Check if a point is on the P-256 curve: y² ≡ x³ − 3x + b (mod p).
-#[allow(dead_code)]
 fn point_on_curve(p: &AffinePoint) -> bool {
     if p.is_infinity {
         return true;
@@ -298,18 +314,24 @@ fn point_double(p: AffinePoint) -> AffinePoint {
 }
 
 /// Scalar multiplication k * P using double-and-add.
+///
+/// Always performs exactly 256 double+select iterations regardless of the
+/// scalar's bit length (every bit position is visited, including leading
+/// zero bits, and the doubling/addition result is chosen via an
+/// unconditional `point_add` plus a select rather than skipping the
+/// addition outright). This removes the previous leak where the number of
+/// point operations depended on the bit-length of the secret scalar — a
+/// timing side channel exposing information about `k` (the ECDSA nonce) or
+/// the private key. This is a partial mitigation only: `point_add` and
+/// `point_double` still branch on point structure (identity, doubling,
+/// inverse), so this function is not yet fully constant-time.
 fn point_mul(k: [u64; 4], p: AffinePoint) -> AffinePoint {
     let mut result = point_identity();
-    let mut found_high_bit = false;
     for limb in k.iter().rev() {
         for bit in (0..64).rev() {
-            if found_high_bit {
-                result = point_double(result);
-            }
-            if (limb >> bit) & 1 == 1 {
-                found_high_bit = true;
-                result = point_add(result, p);
-            }
+            result = point_double(result);
+            let sum = point_add(result, p);
+            result = if (limb >> bit) & 1 == 1 { sum } else { result };
         }
     }
     result
@@ -336,7 +358,6 @@ fn n_add(a: [u64; 4], b: [u64; 4]) -> [u64; 4] {
 }
 
 /// Subtract two numbers mod n.
-#[allow(dead_code)]
 fn n_sub(a: [u64; 4], b: [u64; 4]) -> [u64; 4] {
     let (diff, borrow) = u256_sub(a, b);
     if borrow != 0 {
@@ -451,6 +472,21 @@ fn bytes_to_n(bytes: &[u8; 32]) -> [u64; 4] {
     bytes_to_fe(bytes) // Same layout; reduction happens in n_mul
 }
 
+/// Reduce a message hash to a scalar mod n, per FIPS 186-4.
+///
+/// A 32-byte hash is interpreted as a 256-bit big-endian integer, which can
+/// be `>= n` (n is a few bits short of 2^256). A single conditional
+/// subtraction suffices since the hash is always `< 2^256 < 2*n`.
+fn hash_to_scalar(hash: &[u8; 32]) -> [u64; 4] {
+    let raw = bytes_to_fe(hash);
+    if u256_cmp(raw, N) != core::cmp::Ordering::Less {
+        let (reduced, _) = u256_sub(raw, N);
+        reduced
+    } else {
+        raw
+    }
+}
+
 // ---------------------------------------------------------------------------
 // ECDSA
 // ---------------------------------------------------------------------------
@@ -501,15 +537,20 @@ impl Ecc for P256Ecc {
     type PrivateKey = PrivateKey;
     type Signature = Signature;
 
-    fn keygen(&self) -> (PublicKey, PrivateKey) {
-        // Mock key generation: use a fixed private key for reproducible tests.
-        let scalar = [0xDEADBEEF_CAFEBABE, 0x12345678_9ABCDEF0, 0xFEEDFACE_DEADBEEF, 0x01234567_89ABCDEF];
+    fn keygen(&self, seed: &[u8; 32]) -> (PublicKey, PrivateKey) {
+        // Map the caller-supplied entropy onto a scalar in [1, n-1] via a
+        // single reduction mod n (see `Ecc::keygen`'s doc: `seed` must come
+        // from a CSPRNG, so reducing to exactly zero has probability
+        // ~2^-224 and the fallback below is effectively unreachable).
+        let raw = bytes_to_fe(seed);
+        let reduced = n_mul(raw, [1, 0, 0, 0]);
+        let scalar = if u256_is_zero(reduced) { [1, 0, 0, 0] } else { reduced };
         let point = point_mul(scalar, generator());
         (PublicKey { point }, PrivateKey { scalar })
     }
 
     fn sign(&self, hash: &[u8; 32], private_key: &PrivateKey) -> Signature {
-        let z = bytes_to_fe(hash);
+        let z = hash_to_scalar(hash);
         let mut rng = MockRng { state: u64::from_le_bytes(hash[..8].try_into().unwrap()) };
 
         let (r, s) = loop {
@@ -548,9 +589,16 @@ impl Ecc for P256Ecc {
             let k_inv = n_inv(k_mod);
             let rd = n_mul(r, private_key.scalar);
             let z_plus_rd = n_add(z, rd);
-            let s = n_mul(k_inv, z_plus_rd);
+            let mut s = n_mul(k_inv, z_plus_rd);
             if u256_is_zero(s) {
                 continue;
+            }
+
+            // Canonicalize to low-s form: (r, s) and (r, n-s) both verify
+            // for the same message/key (ECDSA malleability), so always
+            // emit the smaller of the two to make signatures unique.
+            if u256_cmp(s, u256_shr1(N)) == core::cmp::Ordering::Greater {
+                s = n_sub(N, s);
             }
 
             break (r, s);
@@ -570,8 +618,19 @@ impl Ecc for P256Ecc {
         {
             return false;
         }
+        // Reject non-canonical (high-s) signatures — see the low-s
+        // canonicalization comment in `sign`.
+        if u256_cmp(signature.s, u256_shr1(N)) == core::cmp::Ordering::Greater {
+            return false;
+        }
+        // Reject invalid public keys: the identity point, or a point that
+        // does not actually lie on the curve (an "invalid curve" attack
+        // surface for keys built from untrusted bytes via `from_xy`).
+        if public_key.point.is_infinity || !point_on_curve(&public_key.point) {
+            return false;
+        }
 
-        let z = bytes_to_fe(hash);
+        let z = hash_to_scalar(hash);
         let s_inv = n_inv(signature.s);
         let u1 = n_mul(z, s_inv);
         let u2 = n_mul(signature.r, s_inv);
@@ -600,14 +659,22 @@ impl Ecc for P256Ecc {
 }
 
 impl PublicKey {
-    /// Create a public key from a32-byte x and y coordinates.
-    pub fn from_xy(x: &[u8; 32], y: &[u8; 32]) -> Self {
+    /// Create a public key from a 32-byte x and y coordinate pair.
+    ///
+    /// Returns `None` if the point does not lie on the P-256 curve — an
+    /// "invalid curve" attack surface if constructed from untrusted bytes
+    /// without validation.
+    pub fn from_xy(x: &[u8; 32], y: &[u8; 32]) -> Option<Self> {
         let point = AffinePoint {
             x: bytes_to_fe(x),
             y: bytes_to_fe(y),
             is_infinity: false,
         };
-        Self { point }
+        if point_on_curve(&point) {
+            Some(Self { point })
+        } else {
+            None
+        }
     }
 
     /// Get the x and y coordinates as32-byte arrays.
@@ -675,7 +742,8 @@ mod tests {
     #[test]
     fn ecdsa_sign_verify_round_trip() {
         let ecc = P256Ecc;
-        let (pk, sk) = ecc.keygen();
+        let seed = [1u8; 32];
+        let (pk, sk) = ecc.keygen(&seed);
         let hash = [0xABu8; 32];
         let sig = ecc.sign(&hash, &sk);
         assert!(ecc.verify(&hash, &sig, &pk), "valid signature must verify");
@@ -685,7 +753,8 @@ mod tests {
     #[test]
     fn ecdsa_wrong_hash_fails() {
         let ecc = P256Ecc;
-        let (pk, sk) = ecc.keygen();
+        let seed = [2u8; 32];
+        let (pk, sk) = ecc.keygen(&seed);
         let hash1 = [0xABu8; 32];
         let hash2 = [0xCDu8; 32];
         let sig = ecc.sign(&hash1, &sk);
@@ -696,20 +765,21 @@ mod tests {
     #[test]
     fn ecdsa_wrong_key_fails() {
         let ecc = P256Ecc;
-        let (_, sk) = ecc.keygen();
-        let (pk2, _) = ecc.keygen(); // Different key (same scalar in mock, but test structure is correct)
+        let seed1 = [3u8; 32];
+        let seed2 = [4u8; 32];
+        let (_, sk) = ecc.keygen(&seed1);
+        let (pk2, _) = ecc.keygen(&seed2);
         let hash = [0xABu8; 32];
         let sig = ecc.sign(&hash, &sk);
-        // In the mock, keygen always returns the same scalar, so pk2 == pk.
-        // This test verifies the verification logic path.
-        let _ = (sig, pk2); // Covered by the API structure.
+        assert!(!ecc.verify(&hash, &sig, &pk2), "wrong key must not verify");
     }
 
     /// Deterministic signing produces identical signatures for same input.
     #[test]
     fn ecdsa_deterministic() {
         let ecc = P256Ecc;
-        let (_, sk) = ecc.keygen();
+        let seed = [5u8; 32];
+        let (_, sk) = ecc.keygen(&seed);
         let hash = [0x42u8; 32];
         let sig1 = ecc.sign(&hash, &sk);
         let sig2 = ecc.sign(&hash, &sk);
