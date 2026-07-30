@@ -57,7 +57,15 @@ impl MockSleepBackend {
         _buffers: BuffersFlushedToken,
     ) {
         self.attempted.store(true, Ordering::Relaxed);
-        let _ = self.count.fetch_add(1, Ordering::Relaxed);
+        // Not `fetch_add`: RISC-V targets without the atomic-RMW extension
+        // (e.g. ESP32-C3's `riscv32imc`, unlike `riscv32imac`) only provide
+        // `load`/`store` on `core::sync::atomic` types, not `fetch_add`/
+        // `compare_exchange`/etc. This mock is single-threaded-caller-only
+        // (host tests, or a single hardware smoke test), so a non-atomic
+        // read-modify-write is an intentional, honest trade rather than a
+        // race risk in practice.
+        let count = self.count.load(Ordering::Relaxed);
+        self.count.store(count + 1, Ordering::Relaxed);
     }
 
     /// Returns `true` if `try_sleep` has been called at least once.

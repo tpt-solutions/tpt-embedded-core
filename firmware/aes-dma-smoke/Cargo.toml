@@ -1,0 +1,18 @@
+[package]
+name = "aes-dma-smoke"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Real-hardware DMA smoke test: drives the ESP32-C3's AES peripheral via DMA and checks the result against the FIPS-197 Appendix B known-answer vector."
+
+[[bin]]
+name = "aes-dma-smoke"
+path = "src/main.rs"
+test = false
+bench = false
+
+[dependencies]
+esp-hal = { version = "0.22", default-features = false, features = ["esp32c3"] }
+
+[profile.release]
+opt-level = "s"

@@ -136,9 +136,15 @@ impl SimulatedNetwork {
         if !self.link_allows_delivery(from, to) {
             return;
         }
+        // Real per-node monotonic sequence number, not the sender's node
+        // ID: `from`'s own `MeshNode` tracks its own outbound sequence
+        // counter, incremented on every heartbeat it sends.
+        let Some(sequence) = self.node_mut(from).map(MeshNode::next_outbound_sequence) else {
+            return;
+        };
         let msg = Message {
             sender_id: from,
-            sequence: from as u64,
+            sequence,
             msg_type: MessageType::Heartbeat,
             payload: [0u8; 256],
         };

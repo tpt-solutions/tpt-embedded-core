@@ -41,6 +41,16 @@ jobs:
       # this ran the identical host-target command 4 times).
       - run: cargo build -p tpt-e-typestate-hal --target ${{ matrix.target }} --features "use_esp_hal,${{ matrix.chip }}"
       - run: cargo build -p tpt-e-slumber --target ${{ matrix.target }} --features "use_esp_hal,${{ matrix.chip }}"
+      # tpt-e-chronos/tpt-e-cipher/tpt-e-swarm-sync have no use_esp_hal/chip
+      # features yet (no real hardware backend), so these build with default
+      # features — but that alone is worth catching in CI: a 2026-07-30 audit
+      # found tpt-e-chronos failed to even *compile* for riscv32imc
+      # (ESP32-C3) because these three crates were never cross-compiled to a
+      # real chip target here before, only ever built host-side (`--workspace
+      # --features mock` below, or `build-default-features`, both host/x86_64).
+      - run: cargo build -p tpt-e-chronos --target ${{ matrix.target }}
+      - run: cargo build -p tpt-e-cipher --target ${{ matrix.target }}
+      - run: cargo build -p tpt-e-swarm-sync --target ${{ matrix.target }}
       - run: cargo build --workspace --features mock
 
   build-default-features:

@@ -53,6 +53,15 @@ pub enum Event {
     PartitionHealed,
     /// Node is shutting down gracefully.
     Shutdown,
+    /// An `Ack` message was received, correlated (or not) against this
+    /// node's own outstanding `send_data` sequence numbers by
+    /// `MeshNode::process_inbound`. Does not affect role — acknowledgments
+    /// are a message-delivery concern, not an election/liveness signal.
+    MessageAcknowledged {
+        /// The sequence number being acknowledged (echoed from the
+        /// original `Data` message, not the acker's own sequence).
+        sequence: u64,
+    },
 }
 
 /// The state machine result after processing an event.
@@ -206,6 +215,12 @@ impl MeshStateMachine {
             (NodeRole::Unknown, Event::PartitionHealed) => {
                 self.partitioned = false;
                 Transition { new_role: NodeRole::Unknown, should_broadcast: false }
+            }
+            // Message acknowledgments are a delivery concern, not an
+            // election/liveness signal — role is unaffected regardless of
+            // current role.
+            (role, Event::MessageAcknowledged { .. }) => {
+                Transition { new_role: role, should_broadcast: false }
             }
         }
     }

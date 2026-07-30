@@ -2,19 +2,31 @@
 #![allow(unsafe_code)]
 
 use core::cell::UnsafeCell;
-use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use core::sync::atomic::{AtomicUsize, Ordering};
 
 /// A ring buffer with const-generic capacity.
 ///
-/// Push operations use an atomic spinlock-based critical section to serialize
-/// concurrent access (e.g. from ISR context). Pop uses the same spinlock for
-/// the consumer side. Both operations are O(1) and WCET-bounded.
+/// Push and pop each run inside a `critical_section::with` block (interrupts
+/// disabled) to serialize concurrent access, e.g. an ISR calling `push`
+/// while the main loop is mid-`push`. Both operations are O(1) and
+/// WCET-bounded.
+///
+/// # Why a critical section rather than an atomic spinlock
+///
+/// An earlier version of this type used an `AtomicBool` compare-and-swap
+/// spinlock instead. That fails to *compile* on RISC-V targets without the
+/// atomic-RMW extension — e.g. `riscv32imc` (ESP32-C3's actual target,
+/// unlike `riscv32imac`), where `core::sync::atomic` only exposes
+/// `load`/`store`, not `compare_exchange`. A critical section (disabling
+/// interrupts) needs no RMW hardware support and is the standard approach
+/// for single-core ISR/main-loop mutual exclusion in `no_std` embedded code
+/// — which is exactly the scenario this type is designed for.
 ///
 /// # Concurrency
 ///
 /// `push` and `pop` may be called from different contexts (ISR / main loop).
 /// Concurrent `push` calls (or concurrent `pop` calls) are serialized by the
-/// internal spinlock — data loss from interleaved atomic reads is eliminated.
+/// critical section — data loss from interleaved reads is eliminated.
 ///
 /// # Type Parameters
 ///
@@ -24,8 +36,6 @@ pub struct RingBuf<T, const CAP: usize> {
     buffer: UnsafeCell<[T; CAP]>,
     head: AtomicUsize,
     tail: AtomicUsize,
-    push_lock: AtomicBool,
-    pop_lock: AtomicBool,
 }
 
 impl<T, const CAP: usize> core::fmt::Debug for RingBuf<T, CAP> {
@@ -55,34 +65,23 @@ impl<T, const CAP: usize> RingBuf<T, CAP> {
             buffer: UnsafeCell::new([init; CAP]),
             head: AtomicUsize::new(0),
             tail: AtomicUsize::new(0),
-            push_lock: AtomicBool::new(false),
-            pop_lock: AtomicBool::new(false),
         }
     }
 
     /// Attempt to push an item into the buffer.
     ///
     /// Returns `Ok(())` on success, `Err(item)` if the buffer is full.
-    /// Concurrent `push` calls are serialized by an internal spinlock.
+    /// Concurrent `push` calls are serialized by a critical section.
     pub fn push(&self, item: T) -> Result<(), T> {
-        while self
-            .push_lock
-            .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
-            .is_err()
-        {
-            core::hint::spin_loop();
-        }
-        let result = unsafe { self.push_inner(item) };
-        self.push_lock.store(false, Ordering::Release);
-        result
+        critical_section::with(|_cs| unsafe { self.push_inner(item) })
     }
 
-    /// Inner push — caller must hold `push_lock`.
+    /// Inner push — caller must hold the critical section.
     ///
     /// # Safety
     ///
-    /// `push_lock` must be held (set to `true`) by the caller, ensuring
-    /// exclusive access to the head pointer and the target slot.
+    /// The caller must hold the critical section (interrupts disabled),
+    /// ensuring exclusive access to the head pointer and the target slot.
     unsafe fn push_inner(&self, item: T) -> Result<(), T> {
         let head = self.head.load(Ordering::Relaxed);
         let tail = self.tail.load(Ordering::Acquire);
@@ -91,8 +90,9 @@ impl<T, const CAP: usize> RingBuf<T, CAP> {
             return Err(item);
         }
 
-        // SAFETY: push_lock is held, so no concurrent push can race on
-        // this slot. Pop only reads slots behind tail, which is ≤ head.
+        // SAFETY: the critical section excludes concurrent push, so no
+        // concurrent push can race on this slot. Pop only reads slots
+        // behind tail, which is ≤ head.
         (*self.buffer.get())[head & Self::MASK] = item;
 
         self.head.store(head.wrapping_add(1), Ordering::Release);
@@ -101,29 +101,20 @@ impl<T, const CAP: usize> RingBuf<T, CAP> {
 
     /// Attempt to pop an item from the buffer.
     ///
-    /// Concurrent `pop` calls are serialized by an internal spinlock.
+    /// Concurrent `pop` calls are serialized by a critical section.
     pub fn pop(&self) -> Option<T>
     where
         T: Copy,
     {
-        while self
-            .pop_lock
-            .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
-            .is_err()
-        {
-            core::hint::spin_loop();
-        }
-        let result = unsafe { self.pop_inner() };
-        self.pop_lock.store(false, Ordering::Release);
-        result
+        critical_section::with(|_cs| unsafe { self.pop_inner() })
     }
 
-    /// Inner pop — caller must hold `pop_lock`.
+    /// Inner pop — caller must hold the critical section.
     ///
     /// # Safety
     ///
-    /// `pop_lock` must be held (set to `true`) by the caller, ensuring
-    /// exclusive access to the tail pointer and the source slot.
+    /// The caller must hold the critical section (interrupts disabled),
+    /// ensuring exclusive access to the tail pointer and the source slot.
     unsafe fn pop_inner(&self) -> Option<T>
     where
         T: Copy,
@@ -135,9 +126,9 @@ impl<T, const CAP: usize> RingBuf<T, CAP> {
             return None;
         }
 
-        // SAFETY: pop_lock is held, so no concurrent pop can race.
-        // The push side only writes to slots ≥ head, and tail < head,
-        // so this slot is not being written.
+        // SAFETY: the critical section excludes concurrent pop, so no
+        // concurrent pop can race. The push side only writes to slots
+        // ≥ head, and tail < head, so this slot is not being written.
         let item = (*self.buffer.get())[tail & Self::MASK];
 
         self.tail.store(tail.wrapping_add(1), Ordering::Release);
@@ -176,10 +167,11 @@ impl<T, const CAP: usize> RingBuf<T, CAP> {
 }
 
 // SAFETY: RingBuf is safe to share across threads because all mutations to
-// the internal buffer are serialized by atomic spinlocks (push_lock / pop_lock).
-// `push` and `pop` take `&self` and acquire the appropriate lock before touching
-// any shared state, so concurrent calls from ISR + main-loop (or multiple
-// threads in tests) serialize correctly and cannot race on the backing array.
+// the internal buffer happen inside a `critical_section::with` block.
+// `push` and `pop` take `&self` and enter the critical section before
+// touching any shared state, so concurrent calls from ISR + main-loop (or
+// multiple threads in tests, under the `std`-backed critical-section impl)
+// serialize correctly and cannot race on the backing array.
 unsafe impl<T, const CAP: usize> Sync for RingBuf<T, CAP> {}
 
 #[cfg(test)]

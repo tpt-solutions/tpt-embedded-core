@@ -1,0 +1,26 @@
+[workspace]
+
+[package]
+name = "hil-hello"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "First-ever flashable smoke test for tpt-embedded-core: proves the toolchain/flash/monitor pipeline works on real ESP32 silicon."
+
+[[bin]]
+name = "hil-hello"
+path = "src/main.rs"
+test = false
+bench = false
+
+[features]
+default = ["esp32"]
+esp32 = ["esp-hal/esp32"]
+esp32c3 = ["esp-hal/esp32c3"]
+esp32s3 = ["esp-hal/esp32s3"]
+
+[dependencies]
+esp-hal = { version = "0.23", default-features = false, features = ["unstable"] }
+
+[profile.release]
+opt-level = "s"

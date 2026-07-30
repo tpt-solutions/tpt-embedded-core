@@ -11,10 +11,17 @@ workspace = true
 
 [dependencies]
 tpt-e-typestate-hal = { path = "../tpt-e-typestate-hal", optional = true }
+critical-section = { version = "1" }
 
 [dev-dependencies]
 proptest = { workspace = true }
 tpt-e-typestate-hal = { path = "../tpt-e-typestate-hal", features = ["mock"] }
+# `std` gives host builds (tests/examples/doctests) a critical-section impl
+# to link against. Real firmware builds get theirs from esp-hal (or
+# whichever chip-support crate is linked in) instead — exactly one impl is
+# selected per final binary via `critical_section::set_impl!`, and it's
+# provided by whoever the *binary* depends on, not by this library crate.
+critical-section = { version = "1", features = ["std"] }
 
 [features]
 default = []

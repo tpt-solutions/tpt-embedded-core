@@ -1,0 +1,19 @@
+[package]
+name = "typestate-aes-dma-smoke"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Real-hardware smoke test for tpt-e-typestate-hal::aes_dma::AesDmaChannel -- unlike aes-dma-smoke (which drives esp-hal directly), this goes through the crate's own typestate API."
+
+[[bin]]
+name = "typestate-aes-dma-smoke"
+path = "src/main.rs"
+test = false
+bench = false
+
+[dependencies]
+esp-hal = { version = "0.22", default-features = false, features = ["esp32c3"] }
+tpt-e-typestate-hal = { path = "../../crates/tpt-e-typestate-hal", features = ["use_esp_hal", "esp32c3"] }
+
+[profile.release]
+opt-level = "s"

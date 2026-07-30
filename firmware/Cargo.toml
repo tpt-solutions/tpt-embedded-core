@@ -1,0 +1,16 @@
+[workspace]
+resolver = "2"
+members = ["aes-dma-smoke", "slumber-smoke", "typestate-aes-dma-smoke"]
+
+# Deliberately its own workspace, separate from the main library workspace
+# at the repo root: these are flashable no_std binaries, not library crates
+# consumed by anything else, and they need their own pinned riscv32 target /
+# esp-hal chip feature — keeping them isolated means they can never affect
+# `cargo build --workspace` (host, default features) for the main crates.
+#
+# `hil-hello` is NOT a member here: it targets ESP32-S3 (Xtensa), which needs
+# a different esp-hal version and a different toolchain/target than the
+# RISC-V chips below, and Cargo's `links = "esp-hal"` key forbids two
+# different esp-hal versions from ever coexisting in one workspace graph —
+# even across binaries that would never actually link together. It lives at
+# `hil-hello/` as its own standalone one-package workspace instead.

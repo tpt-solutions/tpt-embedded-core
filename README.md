@@ -102,9 +102,18 @@ let controller = SleepController::new();
 
 This is early-stage software. In particular:
 
-- No crate has been validated against real ESP32 hardware yet — every test
-  and example above runs against `mock` (host-side, `std`-backed) backends.
-  See `todo.md` for the current per-crate gap list.
+- None of the five library crates above have been validated against real
+  ESP32 hardware yet — every test and example above runs against `mock`
+  (host-side, `std`-backed) backends. See `todo.md` for the current
+  per-crate gap list. The toolchain/build/flash/monitor pipeline itself
+  *has* been proven end-to-end against a real ESP32-C3, via the minimal
+  smoke test at [`firmware/hil-hello`](firmware/hil-hello) — a prerequisite
+  for, but not yet, hardware validation of the crates themselves.
+  [`firmware/aes-dma-smoke`](firmware/aes-dma-smoke) goes a step further:
+  it drives the chip's real AES peripheral through a real DMA channel and
+  confirms the output against the FIPS-197 known-answer vector (passed on
+  the real board) — proof the underlying hardware DMA path works, ahead of
+  wiring `tpt-e-typestate-hal`/`tpt-e-cipher` to it directly.
 - `tpt-e-cipher`'s SHA-256 is a real, tested implementation; its AES and
   ECC engines are still placeholders (real constant-time AES needs a
   bitsliced or hardware-backed implementation, not naive table lookups —

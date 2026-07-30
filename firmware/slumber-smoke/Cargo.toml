@@ -1,0 +1,19 @@
+[package]
+name = "slumber-smoke"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Real-hardware smoke test: drives tpt-e-slumber's SleepController::enter_deep_sleep on a real ESP32-C3 and confirms the RTC deep-sleep instruction actually executes."
+
+[[bin]]
+name = "slumber-smoke"
+path = "src/main.rs"
+test = false
+bench = false
+
+[dependencies]
+esp-hal = { version = "0.22", default-features = false, features = ["esp32c3"] }
+tpt-e-slumber = { path = "../../crates/tpt-e-slumber", features = ["mock", "use_esp_hal", "esp32c3"] }
+
+[profile.release]
+opt-level = "s"

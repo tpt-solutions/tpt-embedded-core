@@ -774,6 +774,100 @@ mod tests {
         assert!(!ecc.verify(&hash, &sig, &pk2), "wrong key must not verify");
     }
 
+    /// Cross-check against an independent P-256 implementation (.NET's
+    /// `System.Security.Cryptography.ECDsa`, CNG-backed), not this crate's
+    /// own `sign()`/`verify()` round-tripping against itself.
+    ///
+    /// The root `todo.md` flagged this as a real gap: every other ECDSA
+    /// test here only proves internal self-consistency (a sign-convention
+    /// swap or similar systematic algebra error would round-trip fine and
+    /// go undetected). No NIST/CAVP vector file was hand-transcribed here
+    /// (too easy to introduce a wrong constant that fails or silently
+    /// passes for the wrong reason) -- instead these constants were
+    /// generated fresh via a live, independent, trusted crypto stack and
+    /// copied verbatim from its output. Regenerate with (PowerShell):
+    ///
+    /// ```powershell
+    /// Add-Type -AssemblyName System.Security
+    /// $ecdsa = [System.Security.Cryptography.ECDsa]::Create([System.Security.Cryptography.ECCurve+NamedCurves]::nistP256)
+    /// $params = $ecdsa.ExportParameters($true)
+    /// $hash = 1..32 | ForEach-Object { [byte]$_ }
+    /// $sig = $ecdsa.SignHash($hash)
+    /// # $params.D / $params.Q.X / $params.Q.Y / $hash / $sig[0..31] / $sig[32..63]
+    /// ```
+    ///
+    /// Two independent properties are checked against the *same* generated
+    /// key/signature:
+    /// 1. This crate's scalar multiplication (`keygen`, which for a
+    ///    seed already `< n` reduces to a no-op -- see `keygen`'s doc)
+    ///    reproduces the exact public-key point .NET derived from the same
+    ///    private scalar `D`.
+    /// 2. This crate's `verify()` accepts a signature `.NET` produced with
+    ///    its own (different, opaque) nonce -- verification has no nonce
+    ///    dependency, so this exercises the full point-add/point-mul/
+    ///    modular-inverse/`hash_to_scalar` verify path against real,
+    ///    externally-produced values.
+    #[test]
+    fn ecdsa_cross_check_against_dotnet_cng() {
+        let ecc = P256Ecc;
+
+        // Private scalar D, from .NET's ECParameters.D.
+        let d: [u8; 32] = hex32(ECDSA_KAT_D);
+        // Public key (Qx, Qy), from .NET's ECParameters.Q.
+        let qx: [u8; 32] = hex32(ECDSA_KAT_QX);
+        let qy: [u8; 32] = hex32(ECDSA_KAT_QY);
+        // The 32-byte value that was signed (SignHash signs its input
+        // directly, no internal hashing) -- bytes 0x01..=0x20.
+        let hash: [u8; 32] = hex32(ECDSA_KAT_HASH);
+        // Signature (r, s) .NET produced (IEEE P1363 r||s), from SignHash.
+        let r: [u8; 32] = hex32(ECDSA_KAT_R);
+        let s: [u8; 32] = hex32(ECDSA_KAT_S);
+
+        // Property 1: our scalar multiplication reproduces .NET's public key.
+        let (pk, _sk) = ecc.keygen(&d);
+        let expected_x = bytes_to_fe(&qx);
+        let expected_y = bytes_to_fe(&qy);
+        assert!(
+            fe_eq(pk.point.x, expected_x) && fe_eq(pk.point.y, expected_y),
+            "point_mul(D, G) must reproduce .NET's independently-derived public key"
+        );
+
+        // Property 2: our verify() accepts .NET's independently-produced signature.
+        let external_pk = PublicKey::from_xy(&qx, &qy).expect("valid on-curve point");
+        let external_sig = Signature::from_rs(&r, &s);
+        assert!(
+            ecc.verify(&hash, &external_sig, &external_pk),
+            "verify() must accept a signature produced by an independent P-256 implementation"
+        );
+    }
+
+    // KAT constants for `ecdsa_cross_check_against_dotnet_cng`, kept as
+    // named consts (rather than inline literals) so their exact lengths are
+    // trivially greppable/diffable -- these were mistranscribed by hand
+    // (a dropped trailing hex digit) multiple times while authoring this
+    // test, caught only by `hex32`'s own length assertion. `const` items
+    // don't help catch that class of error any more than a `let` would,
+    // but keeping them separate from the test body makes the block below
+    // easy to regenerate wholesale from the PowerShell snippet in the doc
+    // comment above without touching the test logic.
+    const ECDSA_KAT_D: &str = "15e2f1161d69909d136a148ffd5b48a14bc3dc56f0070b79516e33f4efe316b";
+    const ECDSA_KAT_QX: &str = "bb6a642adf7a1036c0185f377482ac43e6a5b7646937331bd2ddaed874c891d";
+    const ECDSA_KAT_QY: &str = "dcd48d46da6da5085e6616ffe274edfd12c941faa8b5c6a5a458e3197d914a5";
+    const ECDSA_KAT_HASH: &str = "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20";
+    const ECDSA_KAT_R: &str = "8d18bb019f3eb067f7db0a642635ad733230c1f988425fe89a616d831eed6c4";
+    const ECDSA_KAT_S: &str = "19efaba5d86d78e66edbf48b4742864fc92d33424799ff4f52a31234cbc9ef4";
+
+    /// Parses a 64-hex-char string into a 32-byte array. Panics on
+    /// malformed input -- test-only helper, not a general hex parser.
+    fn hex32(s: &str) -> [u8; 32] {
+        assert_eq!(s.len(), 64, "expected 64 hex chars (32 bytes)");
+        let mut out = [0u8; 32];
+        for i in 0..32 {
+            out[i] = u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).expect("valid hex byte");
+        }
+        out
+    }
+
     /// Deterministic signing produces identical signatures for same input.
     #[test]
     fn ecdsa_deterministic() {
