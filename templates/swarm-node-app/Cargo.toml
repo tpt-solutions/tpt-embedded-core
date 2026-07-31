@@ -1,0 +1,37 @@
+[package]
+name = "{{project-name}}"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Battery-powered ESP32 mesh sensor node scaffolded from tpt-embedded-core"
+authors = ["{{authors}}"]
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+# Interim: crates.io publishing hasn't happened yet, so this pins a `git`
+# rev (not `path`, which only resolves inside a clone of the monorepo) —
+# same pattern as `templates/esp32-app`. Keep this rev in sync with
+# `master` — an unbumped rev here can silently ship a broken template (see
+# the dated audit entries in the root repo's `todo.md`).
+tpt-e-swarm-sync = { git = "https://github.com/tpt-solutions/tpt-embedded-core", rev = "ae0a219829e739f1f466ab23ee49d4b207174b18", features = ["mock"] }
+tpt-e-chronos = { git = "https://github.com/tpt-solutions/tpt-embedded-core", rev = "ae0a219829e739f1f466ab23ee49d4b207174b18", features = ["mock"] }
+tpt-e-slumber = { git = "https://github.com/tpt-solutions/tpt-embedded-core", rev = "ae0a219829e739f1f466ab23ee49d4b207174b18", features = ["mock"] }
+
+# Pin esp-hal to the version this template is known-good with. Replace with
+# your target chip's feature as needed (esp32c3, esp32s3, esp32c6, esp32).
+esp-hal = { version = "0.22", default-features = false, features = ["esp32c3"] }
+
+critical-section = { version = "1" }
+
+[features]
+default = ["mock"]
+mock = []
+
+[[bin]]
+name = "{{project-name}}"
+path = "src/main.rs"
+test = false
+bench = false
+
+[profile.release]
+opt-level = "s"

@@ -30,5 +30,9 @@ mock = []
 name = "hash_a_buffer"
 required-features = ["mock"]
 
+[[example]]
+name = "verify_firmware_signature"
+required-features = ["mock"]
+
 [package.metadata.docs.rs]
 features = ["mock"]

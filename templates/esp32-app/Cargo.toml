@@ -15,14 +15,16 @@ license = "MIT OR Apache-2.0"
 # `path = "../../crates/..."`, which only resolves from inside one. Switch
 # these to plain version deps once the crates are published.
 #
-# IMPORTANT: this `rev` predates a round of fixes (constant-time ECC point
-# arithmetic, a riscv32imc build break in tpt-e-chronos's mock clock, and
-# this template's own main.rs not actually compiling — see the dated audit
-# entry in the root todo.md). Bump it to the commit containing those fixes
-# once pushed, before publicizing this template.
-tpt-e-typestate-hal = { git = "https://github.com/tpt-solutions/tpt-embedded-core", rev = "570252d239101b1ab849618f61f3d805cfb67bc0", features = ["mock"] }
-tpt-e-chronos = { git = "https://github.com/tpt-solutions/tpt-embedded-core", rev = "570252d239101b1ab849618f61f3d805cfb67bc0", features = ["mock"] }
-tpt-e-cipher = { git = "https://github.com/tpt-solutions/tpt-embedded-core", rev = "570252d239101b1ab849618f61f3d805cfb67bc0", features = ["mock"] }
+# Pinned to the commit containing the fixes this template needs
+# (constant-time ECC point arithmetic, a riscv32imc build break in
+# tpt-e-chronos's mock clock, and this template's own main.rs not actually
+# compiling — see the dated audit entries in the root todo.md). Keep this
+# in sync with master: an unbumped rev here silently ships a broken
+# template to anyone who `cargo generate`s it (this happened once already
+# — see the 2026-07-31 "doc-drift" todo.md entry).
+tpt-e-typestate-hal = { git = "https://github.com/tpt-solutions/tpt-embedded-core", rev = "ae0a219829e739f1f466ab23ee49d4b207174b18", features = ["mock"] }
+tpt-e-chronos = { git = "https://github.com/tpt-solutions/tpt-embedded-core", rev = "ae0a219829e739f1f466ab23ee49d4b207174b18", features = ["mock"] }
+tpt-e-cipher = { git = "https://github.com/tpt-solutions/tpt-embedded-core", rev = "ae0a219829e739f1f466ab23ee49d4b207174b18", features = ["mock"] }
 
 # Pin esp-hal to the version this template is known-good with. Replace with
 # your target chip's feature as needed (esp32c3, esp32s3, esp32c6, esp32).

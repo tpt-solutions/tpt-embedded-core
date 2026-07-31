@@ -11,6 +11,13 @@ The fastest-known-good path is **ESP32-C3 (RISC-V)**. It uses the default
 your board is a plain ESP32 or ESP32-S3 (Xtensa), see
 [Xtensa boards](#xtensa-boards-esp32--esp32-s3) below; it's a longer path.
 
+Not sure which family your board is? Espressif's own line splits like this:
+
+| Chip | Architecture | Toolchain |
+|---|---|---|
+| ESP32-C3, ESP32-C6, ESP32-H2 | RISC-V | plain `rustup`, no extra install |
+| ESP32 (original), ESP32-S2, ESP32-S3 | Xtensa | `espup`, a separate toolchain |
+
 ## ESP32-C3 in about 5 minutes
 
 1. **Install the RISC-V target:**

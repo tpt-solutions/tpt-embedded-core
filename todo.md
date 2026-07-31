@@ -223,3 +223,101 @@ User asked what remaining `todo.md` items were actionable. Re-checked several un
 - [x] **Added**: a Kani harness for AES-128 block encryption (`aes_encrypt_block_never_panics` in `tests/kani_crypto.rs`, which is now shared between SHA-256 and AES) — previously AES had proptest coverage but no Kani harness. This one needed no `kani::assume` bounding at all (fixed-size key schedule and round count, unlike SHA-256's variable-length input).
 - [x] **Added**: per-crate `CHANGELOG.md` for all five crates (previously only a root, workspace-wide one existed) — part of the "Public release checklist" item's still-pending list from 2026-07-31 above.
 
+## Audit Findings — 2026-07-31 (doc-drift, adoption/automation, and two innovative additions)
+
+User asked for a full platform review (bugs, TODOs, missing features, innovative additions,
+usability/automation, adoption speed) after the prior 2026-07-31 passes above. Scope: find what
+those earlier passes hadn't already caught, then fix doc-drift, add medium-effort
+adoption/automation tooling, and build two new innovative additions. Tracked here per this
+file's own convention before/while the work lands, not just fixed silently.
+
+### Bugs / doc-drift
+- [x] **BUG (fixed)**: `templates/esp32-app/Cargo.toml:23-25` pinned its three `git` deps to
+  `rev = "570252d..."`, one commit behind HEAD (`ae0a219`) — predating the exact fixes (riscv32imc
+  `AtomicU64` → `Cell` fix in `tpt-e-chronos::mock::MockClock`, and the template's own
+  `main.rs` missing `esp_hal::prelude::*`/stray `extern crate alloc;`) its own comment said to
+  wait for. Confirmed via `git diff 570252d ae0a219 -- crates/tpt-e-chronos/src/mock.rs`. Fixed:
+  bumped all three `rev`s to `ae0a219829e739f1f466ab23ee49d4b207174b18`, reworded the comment to
+  flag that an unbumped rev here silently ships a broken template (this exact failure mode) and
+  to keep it in sync with `master` going forward.
+- [x] **Doc drift (fixed)**: `CONTRIBUTING.md:60-65` still said internal `path` deps have "no
+  `version` key" and called it "a concrete blocker" — stale since the 2026-07-31
+  crates.io-publish-readiness pass above already added `version = "0.1.0"` to every internal dep
+  (confirmed present in `crates/tpt-e-chronos/Cargo.toml:18` etc). Fixed: rewrote the paragraph to
+  state the version keys already exist and to note they must be bumped in lockstep with
+  `workspace.package.version` (cargo doesn't do that automatically).
+- [x] **BUG (fixed)**: `docs/src/philosophy.md:48-49` and `docs/src/contributing.md:3` still
+  linked to `blob/main/...` (404 — repo's only branch is `master`; every other `main`→`master`
+  reference was fixed in the 2026-07-31 pass above but these two doc pages were missed). Fixed.
+- [x] **Doc clarity (fixed)**: `README.md`'s crate-dependency table read as if every listed edge
+  is a hard runtime dependency, but per `CONTRIBUTING.md`'s dependency-graph section
+  `tpt-e-chronos`→`tpt-e-typestate-hal` is an optional feature and `tpt-e-cipher`→`tpt-e-typestate-hal`
+  is dev-only. Fixed: added a note under the table pointing to the precise breakdown.
+- [x] **Doc clarity (fixed)**: `README.md`'s cross-crate walkthrough doc-example
+  (`# fn dma_target_buffer()`) used `Box::leak(vec![...])`, silently requiring `alloc`/`std`, in a
+  doc otherwise pitching zero-allocation `no_std`. Fixed: added a one-line comment noting this is
+  host-only doctest scaffolding, not part of the no_std story.
+- [x] **Adoption (fixed)**: `docs/src/hardware-quickstart.md` never stated which chip families
+  are RISC-V (`rustup`-only) vs. Xtensa (`espup`-required). Fixed: added a one-line cheat table
+  near the top (C3/C6/H2 = RISC-V; classic/S2/S3 = Xtensa).
+
+### Adoption/automation additions
+- [x] **Adoption (added)**: added root `SECURITY.md` — this project ships real
+  AES-128/SHA-256/P-256 ECDSA with documented constant-time boundaries, so a vulnerability
+  disclosure policy is more than boilerplate. Primary channel: GitHub private vulnerability
+  reporting; explicitly scopes in timing/side-channel reports against the documented boundary
+  (not just memory-safety bugs), and lists the already-disclosed known gaps (ECC field-arithmetic
+  timing, `EspHalBackend` stub, un-wired slumber tokens, no hardware validation yet) as
+  not-new-report material.
+- [x] **Automation (added)**: added `.github/workflows/docs.yml` to build the existing `docs/`
+  mdBook and deploy via `actions/deploy-pages` on push to `master` — the book existed but was
+  never published anywhere. YAML validated (`yaml.safe_load`); `mdbook build docs` itself could
+  not be run in this environment (`mdbook` not installed) — **user should confirm the book
+  actually builds clean before relying on this workflow**. Also needs a one-time manual step
+  outside CI: enable GitHub Pages with source = "GitHub Actions" in repo settings.
+- [x] **Automation (added)**: extended `.github/dependabot.yml` with three more `cargo` entries
+  (`/firmware`, `/templates/esp32-app`, `/templates/swarm-node-app`) — these are separate Cargo
+  dependency trees the previous single root-directory entry never saw.
+- [x] **Investigated, no action needed**: the structural-review agent flagged a tracked-but-empty
+  root `tests/` directory. Confirmed via `git ls-files tests/` (empty result) that it isn't
+  actually git-tracked — empty directories can't be tracked by git — so this is a harmless local
+  artifact, not a repo issue.
+
+### Innovative additions
+- [x] **New (added)**: `crates/tpt-e-cipher/examples/verify_firmware_signature.rs` — signs a mock
+  "firmware image" off-device with P-256 ECDSA over its SHA-256 hash, verifies on-device, and
+  explicitly demonstrates rejecting both a tampered image and one signed by an untrusted key.
+  Uses only the existing `mock` feature (`MockSha256Engine`, `MockP256Ecc`), no new library API —
+  showcases the crate's real, working signature verification in the single most common embedded
+  security pattern, which nothing else in the repo demonstrates end to end. Registered as a
+  `[[example]]` with `required-features = ["mock"]` in `tpt-e-cipher/Cargo.toml` (matching
+  `hash_a_buffer`'s existing entry) and linked from both the root and per-crate READMEs. Run and
+  confirmed all three cases behave correctly (`cargo run -p tpt-e-cipher --example
+  verify_firmware_signature --features mock`): genuine image accepted, tampered image rejected,
+  attacker-signed image rejected.
+- [x] **New (added)**: `templates/swarm-node-app` — a second `cargo-generate` template (distinct
+  from the generic `templates/esp32-app`), scaffolding a battery-powered mesh sensor node:
+  `tpt-e-swarm-sync` (`MeshStateMachine` election) + `tpt-e-chronos` (telemetry `RingBuf`) +
+  `tpt-e-slumber` (proof-token-gated sleep placeholder), the "wake, sample, coordinate, sleep"
+  shape `spec.txt` describes as swarm-sync's actual purpose. Mirrors `templates/esp32-app`'s file
+  structure (`Cargo.toml`, `.cargo/config.toml`, `rust-toolchain.toml`, `src/main.rs`, `README.md`).
+  Its `git` dep `rev` is pinned to current HEAD (`ae0a219829e739f1f466ab23ee49d4b207174b18`) at
+  creation time, to avoid repeating the staleness bug found above in `templates/esp32-app`.
+
+### Verification
+- [x] `cargo build --workspace` (default features) and `cargo test --features mock --workspace`
+  both pass clean (0 failures) after every change above.
+- [x] Both `templates/esp32-app` and `templates/swarm-node-app` were standalone-build-verified
+  (`cargo build --release --target riscv32imc-unknown-none-elf`, implied by
+  `.cargo/config.toml`) outside this repo clone: created a local bare git mirror
+  (scratch-only, never pushed to the real GitHub remote — `ae0a219` was not yet pushed to
+  `origin/master` as of this session, confirmed via `git log -1 origin/master`), pushed current
+  HEAD into it, copied each template to a scratch directory with its `git` URL rewritten to the
+  local mirror, and ran a real `cargo build --release`. Both succeeded from a clean state
+  (fetched and compiled `tpt-e-typestate-hal`/`tpt-e-chronos`/`tpt-e-cipher` for `esp32-app` and
+  `tpt-e-swarm-sync`/`tpt-e-chronos`/`tpt-e-slumber` for `swarm-node-app` from the mirror, then
+  the template binary itself). Scratch directories and cargo's git cache entries for the mirror
+  were cleaned up afterward. **This session's commits have not been pushed to the real GitHub
+  remote** — the pinned `rev`s in both templates will only resolve for real users once `ae0a219`
+  (or a later commit) is actually pushed to `origin/master`.
+

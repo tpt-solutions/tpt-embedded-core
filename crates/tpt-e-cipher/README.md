@@ -41,6 +41,11 @@ assert_eq!(digest.len(), 32);
 
 Run it: `cargo run -p tpt-e-cipher --example hash_a_buffer --features mock`
 
+For a realistic end-to-end use case — signing a firmware image off-device
+and verifying it on-device, rejecting both tampering and unauthorized
+signers — see:
+`cargo run -p tpt-e-cipher --example verify_firmware_signature --features mock`
+
 ## License
 
 Dual-licensed under MIT OR Apache-2.0. See the

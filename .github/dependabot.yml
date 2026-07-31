@@ -20,6 +20,35 @@ updates:
         patterns:
           - "heapless"
 
+  # firmware/ is a separate Cargo workspace (own Cargo.toml/lock), not
+  # covered by the root "/" entry above.
+  - package-ecosystem: "cargo"
+    directory: "/firmware"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+
+  # Each templates/* scaffold has its own standalone Cargo.toml (git deps,
+  # not path deps, so it resolves independently of the root workspace) and
+  # is likewise invisible to the root "/" entry.
+  - package-ecosystem: "cargo"
+    directory: "/templates/esp32-app"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+
+  - package-ecosystem: "cargo"
+    directory: "/templates/swarm-node-app"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+
   # Keep GitHub Actions up to date
   - package-ecosystem: "github-actions"
     directory: "/"

@@ -57,12 +57,12 @@ tpt-e-typestate-hal   (no internal deps — foundational)
 tpt-e-slumber   (no internal deps — standalone)
 ```
 
-All internal deps are currently `path`-only (no `version` key), which only
-resolves within this workspace. This is fine pre-publish, but is itself a
-concrete blocker for the still-open "public release checklist" item: cargo
-requires a `version` alongside `path` for a dependency to resolve once the
-depending crate is published to crates.io, so path-only internal deps must
-gain version constraints as part of that checklist, not before.
+Every internal dep is `path = "../..."` plus a `version = "0.1.0"` key (added
+alongside the workspace-synced version — cargo requires a `version` next to
+`path` for a dependency to resolve once the depending crate is published to
+crates.io, and `path` alone only resolves within this workspace). Bump the
+`version` on every internal dep in lockstep whenever `workspace.package.version`
+changes, since cargo doesn't do that for you.
 
 Versioning policy while all crates share the workspace-synced `0.1.0`
 (see README's "Versioning & Publishing" section for the synchronized vs.

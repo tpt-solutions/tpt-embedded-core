@@ -35,6 +35,12 @@ tpt-embedded-core/
 | `tpt-e-cipher` | `tpt-e-typestate-hal` (DMA handles) | Phase 3 |
 | `tpt-e-swarm-sync` | `tpt-e-chronos` (message queuing) | Phase 4 |
 
+Not every edge above is a hard runtime dependency — `tpt-e-chronos`'s dep on
+`tpt-e-typestate-hal` is an optional feature (DMA handoff only), and
+`tpt-e-cipher`'s is dev-only (integration tests, not the published crate).
+See `CONTRIBUTING.md`'s "Crate Dependency Graph & Versioning Policy" for the
+exact shape.
+
 ## Getting Started
 
 Run the full test suite (all crates, host-side, via the `mock` feature —
@@ -54,6 +60,7 @@ cargo run -p tpt-e-typestate-hal --example dma_transfer  --features mock
 cargo run -p tpt-e-chronos       --example ring_buffer_basics --features mock
 cargo run -p tpt-e-slumber       --example sleep_cycle    --features mock
 cargo run -p tpt-e-cipher        --example hash_a_buffer  --features mock
+cargo run -p tpt-e-cipher        --example verify_firmware_signature --features mock
 cargo run -p tpt-e-swarm-sync    --example mesh_election  --features mock
 ```
 
@@ -99,6 +106,9 @@ let controller = SleepController::new();
 //                    tracking lands */;
 // controller.enter_deep_sleep(dma_token, rtc_token, buffers_token);
 # fn read_sensor() -> u32 { 0 }
+// `Box::leak` below is host-only doctest scaffolding to get a `'static mut`
+// buffer for this sketch — not part of the no_std/zero-allocation story;
+// real firmware supplies a statically-allocated buffer instead.
 # fn dma_target_buffer() -> &'static mut [u8] { Box::leak(vec![0u8; 64].into_boxed_slice()) }
 ```
 
