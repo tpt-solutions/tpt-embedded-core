@@ -5,6 +5,11 @@ edition.workspace = true
 license.workspace = true
 description = "WCET-bounded, zero-allocation telemetry ring buffer for ESP32"
 repository.workspace = true
+readme = "../README.md"
+homepage = "https://github.com/tpt-software/tpt-embedded-core"
+documentation = "https://docs.rs/tpt-e-chronos"
+keywords = ["esp32", "ring-buffer", "telemetry", "embedded", "no_std"]
+categories = ["embedded", "no-std"]
 
 [lints]
 workspace = true

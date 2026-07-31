@@ -1,0 +1,32 @@
+[package]
+name = "{{project-name}}"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "ESP32 application scaffolded from tpt-embedded-core starter template"
+authors = ["{{authors}}"]
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+tpt-e-typestate-hal = { path = "../../crates/tpt-e-typestate-hal", features = ["mock"] }
+tpt-e-chronos = { path = "../../crates/tpt-e-chronos", features = ["mock"] }
+tpt-e-cipher = { path = "../../crates/tpt-e-cipher", features = ["mock"] }
+
+# Pin esp-hal to the version this template is known-good with. Replace with
+# your target chip's feature as needed (esp32c3, esp32s3, esp32c6, esp32).
+esp-hal = { version = "0.22", default-features = false, features = ["esp32c3"] }
+
+critical-section = { version = "1" }
+
+[features]
+default = ["mock"]
+mock = []
+
+[[bin]]
+name = "{{project-name}}"
+path = "src/main.rs"
+test = false
+bench = false
+
+[profile.release]
+opt-level = "s"

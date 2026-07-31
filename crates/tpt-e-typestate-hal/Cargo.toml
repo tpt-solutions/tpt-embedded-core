@@ -5,12 +5,18 @@ edition.workspace = true
 license.workspace = true
 description = "Compile-time safe DMA & ISR abstractions for ESP32 family"
 repository.workspace = true
+readme = "../README.md"
+homepage = "https://github.com/tpt-software/tpt-embedded-core"
+documentation = "https://docs.rs/tpt-e-typestate-hal"
+keywords = ["esp32", "dma", "typestate", "embedded", "no_std"]
+categories = ["embedded", "no-std"]
 
 [lints]
 workspace = true
 
 [dependencies]
 esp-hal = { workspace = true, optional = true }
+defmt = { workspace = true, optional = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
@@ -26,6 +32,7 @@ esp32 = ["esp-hal/esp32"]
 esp32s3 = ["esp-hal/esp32s3"]
 esp32c3 = ["esp-hal/esp32c3"]
 esp32c6 = ["esp-hal/esp32c6"]
+defmt = ["dep:defmt"]
 
 [[example]]
 name = "dma_transfer"

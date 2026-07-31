@@ -5,12 +5,18 @@ edition.workspace = true
 license.workspace = true
 description = "Compile-time verified power management and sleep transitions for ESP32"
 repository.workspace = true
+readme = "../README.md"
+homepage = "https://github.com/tpt-software/tpt-embedded-core"
+documentation = "https://docs.rs/tpt-e-slumber"
+keywords = ["esp32", "sleep", "power-management", "embedded", "no_std"]
+categories = ["embedded", "no-std"]
 
 [lints]
 workspace = true
 
 [dependencies]
 esp-hal = { workspace = true, optional = true }
+defmt = { workspace = true, optional = true }
 
 # No dev-dependencies: token construction currently takes no inputs (see
 # tokens.rs), so there is nothing proptest can usefully fuzz yet. Add
@@ -28,6 +34,7 @@ esp32 = ["esp-hal/esp32"]
 esp32s3 = ["esp-hal/esp32s3"]
 esp32c3 = ["esp-hal/esp32c3"]
 esp32c6 = ["esp-hal/esp32c6"]
+defmt = ["dep:defmt"]
 
 [[example]]
 name = "sleep_cycle"

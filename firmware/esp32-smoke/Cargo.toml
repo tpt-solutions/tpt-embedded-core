@@ -1,0 +1,27 @@
+[workspace]
+
+[package]
+name = "esp32-smoke"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Real-hardware smoke test for plain ESP32 (Xtensa): prints an incrementing counter over UART0, proving the toolchain/flash/monitor pipeline works on original ESP32 silicon."
+
+[[bin]]
+name = "esp32-smoke"
+path = "src/main.rs"
+test = false
+bench = false
+
+[features]
+default = ["esp32"]
+esp32 = ["esp-hal/esp32"]
+esp32s3 = ["esp-hal/esp32s3"]
+esp32c3 = ["esp-hal/esp32c3"]
+esp32c6 = ["esp-hal/esp32c6"]
+
+[dependencies]
+esp-hal = { version = "0.23", default-features = false, features = ["unstable"] }
+
+[profile.release]
+opt-level = "s"

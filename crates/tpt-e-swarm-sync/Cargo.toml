@@ -5,6 +5,11 @@ edition.workspace = true
 license.workspace = true
 description = "Verified state machine for mesh coordination on ESP32 swarms"
 repository.workspace = true
+readme = "../README.md"
+homepage = "https://github.com/tpt-software/tpt-embedded-core"
+documentation = "https://docs.rs/tpt-e-swarm-sync"
+keywords = ["esp32", "mesh", "esp-now", "swarm", "embedded", "no_std"]
+categories = ["embedded", "no-std"]
 
 [lints]
 workspace = true

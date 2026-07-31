@@ -4,6 +4,9 @@
 //! Deep sleep is only accessible when all required proof tokens are provided
 //! as parameters — missing tokens produce a compile error.
 
+#[cfg(feature = "defmt")]
+use defmt::trace;
+
 use crate::tokens::{BuffersFlushedToken, DmaParkedToken, RtcIsolatedToken};
 
 /// The sleep controller.
@@ -89,6 +92,8 @@ impl core::fmt::Debug for SleepController {
 impl SleepController {
     /// Create a new sleep controller wrapping the given RTC peripheral handle.
     pub fn new(rtc: esp_hal::rtc_cntl::Rtc<'static>) -> Self {
+        #[cfg(feature = "defmt")]
+        trace!("SleepController::new: wrapping RTC handle");
         Self { rtc }
     }
 
@@ -114,6 +119,8 @@ impl SleepController {
         _rtc: RtcIsolatedToken,
         _buffers: BuffersFlushedToken,
     ) -> ! {
+        #[cfg(feature = "defmt")]
+        trace!("SleepController::enter_deep_sleep: executing RTC deep-sleep instruction");
         self.rtc.sleep_deep(&[]);
     }
 }

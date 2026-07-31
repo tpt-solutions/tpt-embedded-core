@@ -51,6 +51,9 @@
 
 use core::marker::PhantomData;
 
+#[cfg(feature = "defmt")]
+use defmt::trace;
+
 use esp_hal::aes::{
     dma::{AesDma, CipherMode},
     Key, Mode,
@@ -163,9 +166,9 @@ impl<'d> AesDmaChannel<'d, Configured> {
         plaintext: &[u8],
         mut ciphertext: &mut [u8],
     ) -> AesDmaChannel<'d, Transferring> {
-        // `.take()`, not a copy/clone: `Mode`/`CipherMode` implement
-        // neither, and this also leaves `self.config` as `None` so it can
-        // be moved again below without a use-after-move error.
+        #[cfg(feature = "defmt")]
+        trace!("AesDmaChannel::start: key_len={:?}, pt_len={:?}, ct_len={:?}", key.into().as_bytes().len(), plaintext.len(), ciphertext.len());
+
         let AesConfig { mode, cipher_mode } =
             self.config.take().expect("Configured implies config set");
 
@@ -173,6 +176,9 @@ impl<'d> AesDmaChannel<'d, Configured> {
             .aes_dma
             .process(&plaintext, &mut ciphertext, mode, cipher_mode, key)
             .and_then(|transfer| transfer.wait());
+
+        #[cfg(feature = "defmt")]
+        trace!("AesDmaChannel::start done: result={:?}", result.is_ok());
 
         AesDmaChannel {
             _state: PhantomData,
@@ -206,6 +212,8 @@ impl<'d> AesDmaChannel<'d, Transferring> {
 impl<'d> AesDmaChannel<'d, Complete> {
     /// The result of the completed transfer.
     pub fn result(&self) -> Result<(), DmaError> {
+        #[cfg(feature = "defmt")]
+        trace!("AesDmaChannel::result: {:?}", self.result.is_ok());
         // SAFETY-free: no `unsafe` here. `result` is always `Some` because
         // the only way to reach `Complete` is via `Transferring::wait`,
         // which always carries forward a `Some` set by `Configured::start`.

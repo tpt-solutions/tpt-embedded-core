@@ -26,8 +26,16 @@ impl MockAesEngine {
             0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6,
             0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c,
         ];
+        Self::new_with_key(&test_key)
+    }
+
+    /// Create a new mock AES engine with a caller-supplied key.
+    ///
+    /// The key must be 16 bytes (AES-128). For testing with known-answer
+    /// vectors, use the constants from FIPS-197 Appendix B.
+    pub fn new_with_key(key: &[u8; 16]) -> Self {
         Self {
-            round_keys: crate::aes::expand_key(&test_key),
+            round_keys: crate::aes::expand_key(key),
         }
     }
 }

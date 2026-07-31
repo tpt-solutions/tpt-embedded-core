@@ -850,12 +850,12 @@ mod tests {
     // but keeping them separate from the test body makes the block below
     // easy to regenerate wholesale from the PowerShell snippet in the doc
     // comment above without touching the test logic.
-    const ECDSA_KAT_D: &str = "15e2f1161d69909d136a148ffd5b48a14bc3dc56f0070b79516e33f4efe316b";
-    const ECDSA_KAT_QX: &str = "bb6a642adf7a1036c0185f377482ac43e6a5b7646937331bd2ddaed874c891d";
-    const ECDSA_KAT_QY: &str = "dcd48d46da6da5085e6616ffe274edfd12c941faa8b5c6a5a458e3197d914a5";
+    const ECDSA_KAT_D: &str = "aecdfca13c6f1abf6657cf7ed8092a8aa4fda60c3928082b6b04d340b18f0d0e";
+    const ECDSA_KAT_QX: &str = "996e6d550521c83f1047beb79e20d2cb7475f9e57e794eb5c3bdcce495c47127";
+    const ECDSA_KAT_QY: &str = "176c54c635269588016341cd182b27307cf2784d3c51cc353b5a394ccf2ebe85";
     const ECDSA_KAT_HASH: &str = "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20";
-    const ECDSA_KAT_R: &str = "8d18bb019f3eb067f7db0a642635ad733230c1f988425fe89a616d831eed6c4";
-    const ECDSA_KAT_S: &str = "19efaba5d86d78e66edbf48b4742864fc92d33424799ff4f52a31234cbc9ef4";
+    const ECDSA_KAT_R: &str = "379bb06c124b10b5a6f0863c0c5035dc0324bb56d3fda2d6d14085e93adc0d35";
+    const ECDSA_KAT_S: &str = "543b9b903ad48aa9d9280384b3165eb8b929543e985af58acae17887127f1150";
 
     /// Parses a 64-hex-char string into a 32-byte array. Panics on
     /// malformed input -- test-only helper, not a general hex parser.
