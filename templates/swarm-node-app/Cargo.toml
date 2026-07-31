@@ -19,7 +19,7 @@ tpt-e-slumber = { git = "https://github.com/tpt-solutions/tpt-embedded-core", re
 
 # Pin esp-hal to the version this template is known-good with. Replace with
 # your target chip's feature as needed (esp32c3, esp32s3, esp32c6, esp32).
-esp-hal = { version = "0.22", default-features = false, features = ["esp32c3"] }
+esp-hal = { version = "1.1", default-features = false, features = ["esp32c3"] }
 
 critical-section = { version = "1" }
 
