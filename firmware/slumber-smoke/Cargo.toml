@@ -12,7 +12,7 @@ test = false
 bench = false
 
 [dependencies]
-esp-hal = { version = "0.22", default-features = false, features = ["esp32c3"] }
+esp-hal = { version = "1.1", default-features = false, features = ["esp32c3"] }
 tpt-e-slumber = { path = "../../crates/tpt-e-slumber", features = ["mock", "use_esp_hal", "esp32c3"] }
 
 [profile.release]
