@@ -1,6 +1,11 @@
-//! Kani proof harnesses for `tpt-e-cipher` SHA-256 implementation.
+//! Kani proof harnesses for `tpt-e-cipher`'s SHA-256 and AES implementations.
 //!
 //! Run with: `cargo kani --features mock -p tpt-e-cipher`
+//!
+//! ECC has its own file, `kani_ecc.rs` — see that file's module doc for why
+//! (its scalar-multiplication loop is expensive enough per-iteration that
+//! it warranted separate scoping notes, unlike AES/SHA-256's fixed, cheap
+//! per-round cost).
 
 /// Prove that `Sha256Engine::update` + `finalize` never panics for any
 /// input data.
@@ -57,4 +62,21 @@ fn sha256_incremental_never_panics() {
     }
     let digest = engine.finalize();
     assert_eq!(digest.len(), 32);
+}
+
+/// Prove that AES-128 block encryption never panics for any 16-byte key
+/// and 16-byte plaintext block. Unlike SHA-256's `update`, this has no
+/// variable-length input to bound — the key schedule (11 fixed round keys)
+/// and the 10-round cipher loop are both compile-time-fixed sizes, so this
+/// harness needs no `kani::assume` bounding at all.
+#[cfg(kani)]
+#[kani::proof]
+fn aes_encrypt_block_never_panics() {
+    use tpt_e_cipher::mock::MockAesEngine;
+    use tpt_e_cipher::traits::Aes;
+
+    let key: [u8; 16] = kani::any();
+    let mut block: [u8; 16] = kani::any();
+    let mut engine = MockAesEngine::new_with_key(&key);
+    engine.encrypt_block(&mut block);
 }

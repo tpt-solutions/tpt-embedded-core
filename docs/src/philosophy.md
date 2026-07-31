@@ -45,5 +45,5 @@ minimum-length critical sections.
 
 ## See Also
 
-- [`CONTRIBUTING.md`](https://github.com/tpt-software/tpt-embedded-core/blob/main/CONTRIBUTING.md) — full TPT Standard as a review checklist
-- [`spec.txt`](https://github.com/tpt-software/tpt-embedded-core/blob/main/spec.txt) — formal specification
+- [`CONTRIBUTING.md`](https://github.com/tpt-solutions/tpt-embedded-core/blob/main/CONTRIBUTING.md) — full TPT Standard as a review checklist
+- [`spec.txt`](https://github.com/tpt-solutions/tpt-embedded-core/blob/main/spec.txt) — formal specification

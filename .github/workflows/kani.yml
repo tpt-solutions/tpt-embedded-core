@@ -2,9 +2,9 @@ name: Kani
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 env:
   CARGO_TERM_COLOR: always
@@ -29,5 +29,11 @@ jobs:
       - uses: model-checking/kani-github-action@v1
         with:
           args: cargo kani --features mock -p tpt-e-cipher
-      # Future: add side-channel analysis tooling here once real AES/ECC
-      # implementations land (see todo.md Phase 3 formal verification item).
+      # Real AES/SHA-256/ECC implementations have landed (see todo.md Phase 3).
+      # Kani here covers panic-freedom/bounds, not data-dependent timing.
+      # Future: add dedicated side-channel/timing analysis tooling (e.g.
+      # ctverif, FaCT, or hardware timing measurement) to actually verify
+      # the constant-time claims Kani can't check — see todo.md's Phase 3
+      # "Formal verification" item and tpt-e-cipher's ecc.rs module docs for
+      # the specific remaining gap (field-arithmetic layer not yet
+      # constant-time).

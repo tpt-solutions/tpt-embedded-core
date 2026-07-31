@@ -3,12 +3,20 @@
 //! This is a software implementation — no hardware ECC peripheral backend
 //! exists yet, so unlike [`crate::aes`] and [`crate::sha`] this is the
 //! crate's only `Ecc` implementation (not gated behind the `mock` feature).
-//! It is **not** constant-time: point arithmetic and scalar-bit selection
-//! branch on secret-dependent data. Do not use this where signing-timing
-//! side channels are in the threat model. For real deployments requiring
-//! timing-safety guarantees, the `Ecc` trait should eventually be backed by
-//! a constant-time (e.g. `esp-hal` hardware, or a branchless Montgomery
-//! ladder) implementation.
+//!
+//! **Constant-time status**: point arithmetic (`point_mul`'s inner loop)
+//! uses the Renes–Costello–Batina complete addition/doubling formulas
+//! (`proj_add`, `proj_double`) plus a bitmask-based accumulator select
+//! (`fe_select`), so neither the scalar's bit pattern nor intermediate
+//! point structure (identity/doubling/inverse) drives control flow. This
+//! closes the previous gap where `point_add`/`point_double` branched on
+//! point structure. **Not yet addressed**: the underlying big-integer field
+//! arithmetic (`fe_add`/`fe_sub`'s conditional-subtract modular reduction,
+//! `fe_inv`, `u256_cmp`) still uses value-dependent branches — a separate,
+//! lower-layer timing channel common to schoolbook bignum implementations.
+//! Do not use this where signing-timing side channels are in the threat
+//! model until that layer is also addressed (e.g. `esp-hal` hardware
+//! backing, or fully branchless field arithmetic).
 //!
 //! The implementation covers:
 //! - Field arithmetic in GF(p) where p = 2^256 − 2^224 + 2^192 + 2^96 − 1
@@ -192,6 +200,28 @@ fn fe_sqr(a: [u64; 4]) -> [u64; 4] {
     fe_mul(a, a)
 }
 
+/// Field doubling (a + a) mod p.
+fn fe_double(a: [u64; 4]) -> [u64; 4] {
+    fe_add(a, a)
+}
+
+/// Constant-time select: returns `a` if `bit` (0 or 1) is 1, else `b`.
+///
+/// Implemented via arithmetic bitmasking rather than a Rust `if`, so this
+/// never becomes a data-dependent branch instruction: selecting on a secret
+/// scalar bit via `if bit == 1 { a } else { b }` is exactly the kind of
+/// control-flow-leaks-the-bit timing side channel this function exists to
+/// avoid (used by [`point_mul`] to choose the accumulator after a
+/// conditional add).
+fn fe_select(bit: u64, a: [u64; 4], b: [u64; 4]) -> [u64; 4] {
+    let mask = 0u64.wrapping_sub(bit & 1);
+    let mut r = [0u64; 4];
+    for i in 0..4 {
+        r[i] = (a[i] & mask) | (b[i] & !mask);
+    }
+    r
+}
+
 /// Field inversion using Fermat's little theorem: a^(-1) = a^(p-2) mod p.
 fn fe_inv(a: [u64; 4]) -> [u64; 4] {
     // Use an addition chain for a^(p-2) mod p.
@@ -270,71 +300,181 @@ fn point_on_curve(p: &AffinePoint) -> bool {
     fe_eq(y2, rhs)
 }
 
-/// Point addition for distinct, non-identity affine points.
-fn point_add(p: AffinePoint, q: AffinePoint) -> AffinePoint {
-    if p.is_infinity {
-        return q;
-    }
-    if q.is_infinity {
-        return p;
-    }
-    if fe_eq(p.x, q.x) {
-        if fe_eq(p.y, q.y) {
-            return point_double(p);
-        }
-        // P + (-P) = O
-        return point_identity();
-    }
-    // lambda = (q.y - p.y) / (q.x - p.x)
-    let dx = fe_sub(q.x, p.x);
-    let dy = fe_sub(q.y, p.y);
-    let lambda = fe_mul(dy, fe_inv(dx));
-    let x3 = fe_sub(fe_sub(fe_sqr(lambda), p.x), q.x);
-    let y3 = fe_sub(fe_mul(lambda, fe_sub(p.x, x3)), p.y);
-    AffinePoint { x: x3, y: y3, is_infinity: false }
+/// A point in Jacobian-free projective (homogeneous) coordinates:
+/// affine `(x/z, y/z)`, with the identity (point at infinity) represented
+/// as `z == 0` rather than a separate flag.
+///
+/// Representing infinity via `z == 0` — instead of [`AffinePoint`]'s
+/// explicit `is_infinity` boolean — is exactly what lets [`proj_add`] and
+/// [`proj_double`] below handle every input (identity, doubling, mutual
+/// inverses) with the *same* fixed sequence of field operations and no
+/// `if` on point structure at all.
+#[derive(Debug, Clone, Copy)]
+struct ProjectivePoint {
+    x: [u64; 4],
+    y: [u64; 4],
+    z: [u64; 4],
 }
 
-/// Point doubling for a non-identity, non-singular affine point.
-fn point_double(p: AffinePoint) -> AffinePoint {
+/// Convert an affine point to projective form.
+fn to_projective(p: AffinePoint) -> ProjectivePoint {
     if p.is_infinity {
-        return p;
+        ProjectivePoint { x: [0, 0, 0, 0], y: [1, 0, 0, 0], z: [0, 0, 0, 0] }
+    } else {
+        ProjectivePoint { x: p.x, y: p.y, z: [1, 0, 0, 0] }
     }
-    if fe_is_zero(p.y) {
+}
+
+/// Convert a projective point back to affine form.
+///
+/// This performs one field inversion and one branch on whether the *final*
+/// result is the identity (`z == 0`). Unlike the per-scalar-bit branching
+/// this module previously had, that single check depends only on the
+/// public output of a completed operation (the same public quantity
+/// `sign`/`verify` already branch on via `r_point.is_infinity`), not on
+/// individual secret scalar bits — so it is not a side channel on `k` or
+/// the private key.
+fn to_affine(p: ProjectivePoint) -> AffinePoint {
+    if fe_is_zero(p.z) {
         return point_identity();
     }
-    // lambda = (3*x^2 + a) / (2*y) where a = -3 for P-256
-    let x2 = fe_sqr(p.x);
-    let three_x2 = fe_mul(x2, [3, 0, 0, 0]);
-    let numerator = fe_sub(three_x2, [3, 0, 0, 0]); // 3*x^2 - 3
-    let two_y = fe_mul(p.y, [2, 0, 0, 0]);
-    let lambda = fe_mul(numerator, fe_inv(two_y));
-    let x3 = fe_sub(fe_sqr(lambda), fe_mul(p.x, [2, 0, 0, 0]));
-    let y3 = fe_sub(fe_mul(lambda, fe_sub(p.x, x3)), p.y);
-    AffinePoint { x: x3, y: y3, is_infinity: false }
+    let z_inv = fe_inv(p.z);
+    AffinePoint { x: fe_mul(p.x, z_inv), y: fe_mul(p.y, z_inv), is_infinity: false }
+}
+
+/// Constant-time select between two projective points on a scalar bit.
+fn proj_select(bit: u64, a: ProjectivePoint, b: ProjectivePoint) -> ProjectivePoint {
+    ProjectivePoint {
+        x: fe_select(bit, a.x, b.x),
+        y: fe_select(bit, a.y, b.y),
+        z: fe_select(bit, a.z, b.z),
+    }
+}
+
+/// Complete point addition for P-256 (`a = -3`), in projective coordinates.
+///
+/// This is the Renes–Costello–Batina 2015 "complete addition formulas for
+/// prime order elliptic curves" Algorithm 4, specialized for `a = -3` (as
+/// P-256 is): <https://eprint.iacr.org/2015/1060>. Cross-checked line-for-line
+/// against the `EquationAIsMinusThree::add_assign` implementation in
+/// RustCrypto's `primeorder` crate (used by the widely-audited `p256`
+/// crate). "Complete" means this single, fixed sequence of field
+/// operations is correct for *every* input pair — both/either operand
+/// being the identity, the operands being equal (doubling), and the
+/// operands being mutual inverses (P + (-P)) — with no `if` anywhere in
+/// this function distinguishing those cases. That structural branching
+/// (which secret-dependent point relationships take which code path) was
+/// the residual gap the previous affine `point_add` disclosed; this
+/// closes it.
+fn proj_add(p: ProjectivePoint, q: ProjectivePoint) -> ProjectivePoint {
+    let xx = fe_mul(p.x, q.x);
+    let yy = fe_mul(p.y, q.y);
+    let zz = fe_mul(p.z, q.z);
+    let xy_pairs = fe_sub(fe_mul(fe_add(p.x, p.y), fe_add(q.x, q.y)), fe_add(xx, yy));
+    let yz_pairs = fe_sub(fe_mul(fe_add(p.y, p.z), fe_add(q.y, q.z)), fe_add(yy, zz));
+    let xz_pairs = fe_sub(fe_mul(fe_add(p.x, p.z), fe_add(q.x, q.z)), fe_add(xx, zz));
+
+    let bzz_part = fe_sub(xz_pairs, fe_mul(B, zz));
+    let bzz3_part = fe_add(fe_double(bzz_part), bzz_part);
+    let yy_m_bzz3 = fe_sub(yy, bzz3_part);
+    let yy_p_bzz3 = fe_add(yy, bzz3_part);
+
+    let zz3 = fe_add(fe_double(zz), zz);
+    let bxz_part = fe_sub(fe_mul(B, xz_pairs), fe_add(zz3, xx));
+    let bxz3_part = fe_add(fe_double(bxz_part), bxz_part);
+    let xx3_m_zz3 = fe_sub(fe_add(fe_double(xx), xx), zz3);
+
+    let x3 = fe_sub(fe_mul(yy_p_bzz3, xy_pairs), fe_mul(yz_pairs, bxz3_part));
+    let y3 = fe_add(fe_mul(yy_p_bzz3, yy_m_bzz3), fe_mul(xx3_m_zz3, bxz3_part));
+    let z3 = fe_add(fe_mul(yy_m_bzz3, yz_pairs), fe_mul(xy_pairs, xx3_m_zz3));
+
+    ProjectivePoint { x: x3, y: y3, z: z3 }
+}
+
+/// Complete point doubling for P-256 (`a = -3`), in projective coordinates.
+///
+/// Renes–Costello–Batina 2015 Algorithm 6 (the exception-free doubling
+/// formula specialized for `a = -3`), cross-checked against
+/// `EquationAIsMinusThree::double_in_place` in RustCrypto's `primeorder`
+/// crate. Like [`proj_add`], correct (and branch-free on point structure)
+/// for every input, including the identity and points with `y == 0`.
+fn proj_double(p: ProjectivePoint) -> ProjectivePoint {
+    let xx = fe_sqr(p.x);
+    let yy = fe_sqr(p.y);
+    let zz = fe_sqr(p.z);
+    let xy2 = fe_double(fe_mul(p.x, p.y));
+    let xz2 = fe_double(fe_mul(p.x, p.z));
+
+    let bzz_part = fe_sub(fe_mul(B, zz), xz2);
+    let bzz3_part = fe_add(fe_double(bzz_part), bzz_part);
+    let yy_m_bzz3 = fe_sub(yy, bzz3_part);
+    let yy_p_bzz3 = fe_add(yy, bzz3_part);
+    let y_frag = fe_mul(yy_p_bzz3, yy_m_bzz3);
+    let x_frag = fe_mul(yy_m_bzz3, xy2);
+
+    let zz3 = fe_add(fe_double(zz), zz);
+    let bxz2_part = fe_sub(fe_mul(B, xz2), fe_add(zz3, xx));
+    let bxz6_part = fe_add(fe_double(bxz2_part), bxz2_part);
+    let xx3_m_zz3 = fe_sub(fe_add(fe_double(xx), xx), zz3);
+
+    let y3 = fe_add(y_frag, fe_mul(xx3_m_zz3, bxz6_part));
+    let yz2 = fe_double(fe_mul(p.y, p.z));
+    let x3 = fe_sub(x_frag, fe_mul(bxz6_part, yz2));
+    let z3 = fe_double(fe_double(fe_mul(yz2, yy)));
+
+    ProjectivePoint { x: x3, y: y3, z: z3 }
+}
+
+/// Point addition, complete over every affine input (identity, doubling,
+/// mutual inverses) via [`proj_add`] — see that function's doc for the
+/// formula's provenance and the structural-branching gap it closes.
+fn point_add(p: AffinePoint, q: AffinePoint) -> AffinePoint {
+    to_affine(proj_add(to_projective(p), to_projective(q)))
+}
+
+/// Point doubling, complete over every affine input via [`proj_double`].
+///
+/// `point_mul` calls `proj_double` directly rather than through this affine
+/// wrapper (to avoid a to-affine/to-projective round trip per loop
+/// iteration), so this function is currently exercised only by the test
+/// module's cross-checks (e.g. `generator_order`, which verifies `point_mul`
+/// against an independent doubling/addition chain) — hence `cfg(test)`.
+#[cfg(test)]
+fn point_double(p: AffinePoint) -> AffinePoint {
+    to_affine(proj_double(to_projective(p)))
 }
 
 /// Scalar multiplication k * P using double-and-add.
 ///
-/// Always performs exactly 256 double+select iterations regardless of the
-/// scalar's bit length (every bit position is visited, including leading
-/// zero bits, and the doubling/addition result is chosen via an
-/// unconditional `point_add` plus a select rather than skipping the
-/// addition outright). This removes the previous leak where the number of
-/// point operations depended on the bit-length of the secret scalar — a
-/// timing side channel exposing information about `k` (the ECDSA nonce) or
-/// the private key. This is a partial mitigation only: `point_add` and
-/// `point_double` still branch on point structure (identity, doubling,
-/// inverse), so this function is not yet fully constant-time.
+/// Always performs exactly 256 double+add+select iterations regardless of
+/// the scalar's bit length (every bit position is visited, including
+/// leading zero bits). Both the point arithmetic (`proj_add`/`proj_double`,
+/// the Renes–Costello–Batina complete formulas) and the accumulator choice
+/// (`proj_select`, an arithmetic bitmask rather than an `if`) are free of
+/// branches on secret data — neither the scalar's bit pattern nor the
+/// intermediate points' structure (identity/doubling/inverse) influences
+/// control flow. The single remaining branch is in `to_affine`, executed
+/// once after the loop on the public final result, not per-bit — see that
+/// function's doc.
+///
+/// This closes the previously-disclosed gap where `point_add`/`point_double`
+/// branched on point structure. The underlying field arithmetic
+/// (`fe_add`/`fe_sub`'s conditional-subtract modular reduction, and
+/// `fe_inv`/`u256_cmp`) still uses value-dependent branches and is *not*
+/// constant-time at that lower layer — a separate, deeper class of timing
+/// leak common to schoolbook big-integer arithmetic, not addressed by this
+/// fix. See the crate-level "Constant-time status" section.
 fn point_mul(k: [u64; 4], p: AffinePoint) -> AffinePoint {
-    let mut result = point_identity();
+    let base = to_projective(p);
+    let mut result = to_projective(point_identity());
     for limb in k.iter().rev() {
         for bit in (0..64).rev() {
-            result = point_double(result);
-            let sum = point_add(result, p);
-            result = if (limb >> bit) & 1 == 1 { sum } else { result };
+            result = proj_double(result);
+            let sum = proj_add(result, base);
+            result = proj_select((limb >> bit) & 1, sum, result);
         }
     }
-    result
+    to_affine(result)
 }
 
 /// The generator point G.
@@ -888,6 +1028,36 @@ mod tests {
         assert!(point_on_curve(&g2));
         let g3 = point_add(g, g2);
         assert!(point_on_curve(&g3));
+    }
+
+    /// The complete (Renes-Costello-Batina) formulas replaced code that
+    /// special-cased the identity, doubling, and mutual-inverse inputs with
+    /// explicit `if`s. This proves the unified, branch-free replacement is
+    /// still correct on exactly those cases -- the ones a structural branch
+    /// used to distinguish.
+    #[test]
+    fn point_add_handles_every_special_case() {
+        let g = generator();
+        let o = point_identity();
+        let neg_g = AffinePoint { x: g.x, y: fe_sub([0, 0, 0, 0], g.y), is_infinity: false };
+        assert!(point_on_curve(&neg_g), "-G must be on curve");
+
+        let sum = point_add(o, g);
+        assert!(!sum.is_infinity && fe_eq(sum.x, g.x) && fe_eq(sum.y, g.y), "O + G must equal G");
+        let sum = point_add(g, o);
+        assert!(!sum.is_infinity && fe_eq(sum.x, g.x) && fe_eq(sum.y, g.y), "G + O must equal G");
+
+        let doubled = point_double(g);
+        let added = point_add(g, g);
+        assert!(
+            !added.is_infinity && fe_eq(doubled.x, added.x) && fe_eq(doubled.y, added.y),
+            "G + G must equal double(G)"
+        );
+        assert!(point_on_curve(&doubled));
+
+        assert!(point_add(g, neg_g).is_infinity, "G + (-G) must be the identity");
+        assert!(point_add(o, o).is_infinity, "O + O must be the identity");
+        assert!(point_double(o).is_infinity, "double(O) must be the identity");
     }
 
     /// Verify field element inversion: a * a^(-1) == 1.

@@ -1,0 +1,16 @@
+{
+	"name": "tpt-embedded-core",
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"rust-lang.rust-analyzer",
+				"tamasfe.even-better-toml",
+				"serayuzgur.crates"
+			]
+		}
+	},
+	"postCreateCommand": "rustc --version && cargo kani --version && echo 'Devcontainer ready. See docs/src/hardware-quickstart.md for flashing real hardware (requires a USB-passthrough setup this container does not configure) and docs/src/formal-verification.md for Kani usage.'"
+}

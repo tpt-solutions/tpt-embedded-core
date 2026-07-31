@@ -1,6 +1,6 @@
 # Contributing
 
-See the full [CONTRIBUTING.md](https://github.com/tpt-software/tpt-embedded-core/blob/main/CONTRIBUTING.md)
+See the full [CONTRIBUTING.md](https://github.com/tpt-solutions/tpt-embedded-core/blob/main/CONTRIBUTING.md)
 for the TPT Standard review checklist.
 
 ## Quick Reference

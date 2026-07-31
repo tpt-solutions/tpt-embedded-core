@@ -1,7 +1,11 @@
 //! Software crypto backend for host-side testing.
 //!
-//! **Note**: The mock AES is NOT constant-time. It is for logic testing only.
-//! Timing analysis must be performed against the hardware implementation.
+//! **Note**: "mock" here means a software fallback (no ESP32 hardware
+//! peripheral backend exists yet), not fake logic — [`MockAesEngine`] and
+//! [`MockSha256Engine`] wrap the same real, constant-time algorithms as
+//! [`crate::aes::AesEngine`]/[`crate::sha::Sha256Engine`]. See each type's
+//! own doc comment, and `crate::ecc`'s module docs for [`MockP256Ecc`]'s
+//! more nuanced constant-time status.
 
 use crate::ecc::{P256Ecc, PrivateKey, PublicKey, Signature};
 use crate::sha256_core::Sha256Core;
@@ -102,9 +106,10 @@ impl Sha256 for MockSha256Engine {
 /// the `Engine`/`Mock*Engine` split used for AES and SHA-256. Unlike those
 /// two, there is not yet a separate hardware-backed `Ecc` implementation,
 /// so `MockP256Ecc` and `P256Ecc` are behaviorally identical (both software,
-/// both not constant-time — see `crate::ecc`'s module docs). This exists
-/// purely so callers that generically pick a "mock" backend by name have a
-/// symmetrical `MockP256Ecc` alongside `MockAesEngine`/`MockSha256Engine`.
+/// with the same partial constant-time status — see `crate::ecc`'s module
+/// docs for the precise boundary). This exists purely so callers that
+/// generically pick a "mock" backend by name have a symmetrical
+/// `MockP256Ecc` alongside `MockAesEngine`/`MockSha256Engine`.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct MockP256Ecc;
 

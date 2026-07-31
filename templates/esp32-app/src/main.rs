@@ -13,8 +13,7 @@
 #![no_std]
 #![no_main]
 
-extern crate alloc;
-
+use esp_hal::prelude::*;
 use tpt_e_chronos::ring_buf::RingBuf;
 use tpt_e_cipher::traits::Sha256;
 use tpt_e_cipher::mock::MockSha256Engine;
@@ -26,12 +25,12 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
 
 #[entry]
 fn main() -> ! {
-    let peripherals = esp_hal::init(esp_hal::Config::default());
+    let _peripherals = esp_hal::init(esp_hal::Config::default());
 
     // -----------------------------------------------------------------------
     // 1. Ring buffer — ISR-safe push / main-loop pop
     // -----------------------------------------------------------------------
-    let mut telemetry: RingBuf<u32, 64> = RingBuf::new(0);
+    let telemetry: RingBuf<u32, 64> = RingBuf::new(0);
 
     // Simulate ISR push of telemetry samples.
     for i in 0..32u32 {
@@ -43,7 +42,7 @@ fn main() -> ! {
     while let Some(sample) = telemetry.pop() {
         hasher.update(&sample.to_le_bytes());
     }
-    let digest = hasher.finalize();
+    let _digest = hasher.finalize();
 
     // -----------------------------------------------------------------------
     // 2. (Placeholder) Typestate DMA channel

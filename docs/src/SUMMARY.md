@@ -18,6 +18,7 @@
 # Guides
 
 - [Getting Started](./getting-started.md)
+- [Hardware Quickstart](./hardware-quickstart.md)
 - [Cross-Crate Wiring](./cross-crate-wiring.md)
 
 ---

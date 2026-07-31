@@ -1,6 +1,6 @@
 # `{{project-name}}`
 
-Starter application scaffold built on [`tpt-embedded-core`](https://github.com/tpt-software/tpt-embedded-core).
+Starter application scaffold built on [`tpt-embedded-core`](https://github.com/tpt-solutions/tpt-embedded-core).
 
 This template demonstrates the core patterns of the five library crates:
 
@@ -19,16 +19,18 @@ This template demonstrates the core patterns of the five library crates:
 
 ```bash
 cargo generate \
-  --git https://github.com/tpt-software/tpt-embedded-core \
-  --git-tag main \
+  --git https://github.com/tpt-solutions/tpt-embedded-core \
+  --branch master \
   --init \
   --name my-esp32-app \
   templates/esp32-app
 ```
 
-Or copy this template directory into a new crate and update the `path`
-dependencies in `Cargo.toml` to published crates.io versions once they
-exist.
+Or copy this template directory into a new crate directly — it depends on
+the five `tpt-embedded-core` crates via a `git` dependency pinned to a
+specific commit (not `path`, so it builds standalone outside a clone of the
+monorepo). Update the `rev` in `Cargo.toml` to pick up newer fixes, or
+switch to published crates.io versions once they exist.
 
 ## Running on host
 

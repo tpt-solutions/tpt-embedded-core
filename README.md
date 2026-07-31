@@ -1,9 +1,9 @@
 # `tpt-embedded-core`
 
-[![Build](https://github.com/tpt-software/tpt-embedded-core/actions/workflows/build.yml/badge.svg)](https://github.com/tpt-software/tpt-embedded-core/actions/workflows/build.yml)
-[![Tests](https://github.com/tpt-software/tpt-embedded-core/actions/workflows/test.yml/badge.svg)](https://github.com/tpt-software/tpt-embedded-core/actions/workflows/test.yml)
-[![Proptest](https://github.com/tpt-software/tpt-embedded-core/actions/workflows/proptest.yml/badge.svg)](https://github.com/tpt-software/tpt-embedded-core/actions/workflows/proptest.yml)
-[![Kani](https://github.com/tpt-software/tpt-embedded-core/actions/workflows/kani.yml/badge.svg)](https://github.com/tpt-software/tpt-embedded-core/actions/workflows/kani.yml)
+[![Build](https://github.com/tpt-solutions/tpt-embedded-core/actions/workflows/build.yml/badge.svg)](https://github.com/tpt-solutions/tpt-embedded-core/actions/workflows/build.yml)
+[![Tests](https://github.com/tpt-solutions/tpt-embedded-core/actions/workflows/test.yml/badge.svg)](https://github.com/tpt-solutions/tpt-embedded-core/actions/workflows/test.yml)
+[![Proptest](https://github.com/tpt-solutions/tpt-embedded-core/actions/workflows/proptest.yml/badge.svg)](https://github.com/tpt-solutions/tpt-embedded-core/actions/workflows/proptest.yml)
+[![Kani](https://github.com/tpt-solutions/tpt-embedded-core/actions/workflows/kani.yml/badge.svg)](https://github.com/tpt-solutions/tpt-embedded-core/actions/workflows/kani.yml)
 
 A proof-native, formally verified `no_std` foundation for ESP32 ecosystems.
 
@@ -56,6 +56,10 @@ cargo run -p tpt-e-slumber       --example sleep_cycle    --features mock
 cargo run -p tpt-e-cipher        --example hash_a_buffer  --features mock
 cargo run -p tpt-e-swarm-sync    --example mesh_election  --features mock
 ```
+
+Have a real ESP32 board and want to flash something instead? See
+[`docs/src/hardware-quickstart.md`](docs/src/hardware-quickstart.md) —
+about 5 minutes for an ESP32-C3.
 
 ### Walkthrough: wiring the crates together
 
@@ -114,10 +118,13 @@ This is early-stage software. In particular:
   confirms the output against the FIPS-197 known-answer vector (passed on
   the real board) — proof the underlying hardware DMA path works, ahead of
   wiring `tpt-e-typestate-hal`/`tpt-e-cipher` to it directly.
-- `tpt-e-cipher`'s SHA-256 is a real, tested implementation; its AES and
-  ECC engines are still placeholders (real constant-time AES needs a
-  bitsliced or hardware-backed implementation, not naive table lookups —
-  see `todo.md`).
+- `tpt-e-cipher`'s AES-128, SHA-256, and P-256 ECDSA are all real, tested
+  software implementations (verified against NIST/FIPS/CAVP known-answer
+  vectors, and for ECDSA, cross-checked against an independent
+  implementation). AES/SHA-256 are constant-time; ECDSA's point arithmetic
+  is branch-free on secret data, but its underlying field arithmetic is not
+  yet — see `tpt-e-cipher`'s docs for the precise boundary. None have a
+  hardware peripheral backend yet.
 - `tpt-e-slumber`'s proof tokens are not yet wired to real precondition
   checks in `tpt-e-typestate-hal` — today they only prevent forging tokens
   from outside the crate.

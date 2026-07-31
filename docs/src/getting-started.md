@@ -19,7 +19,17 @@ cargo test --features mock --release
 
 ## Using a Single Crate
 
-Add to your `Cargo.toml`:
+These crates aren't published to crates.io yet (see the root `README.md`'s
+"Versioning & Publishing" section), so a plain `version = "0.1"` dependency
+won't resolve. Until then, depend on a pinned commit via `git`:
+
+```toml
+[dependencies]
+tpt-e-chronos = { git = "https://github.com/tpt-solutions/tpt-embedded-core", rev = "<commit-sha>", features = ["mock"] }
+```
+
+(`templates/esp32-app`'s `Cargo.toml` is a working example of this pattern.)
+Once published, switch to a plain version requirement:
 
 ```toml
 [dependencies]

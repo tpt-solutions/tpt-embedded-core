@@ -9,5 +9,5 @@ title = "TPT Embedded Core"
 build-dir = "book"
 
 [output.html]
-git-repository-url = "https://github.com/tpt-software/tpt-embedded-core"
-edit-url-template = "https://github.com/tpt-software/tpt-embedded-core/edit/main/docs/{path}"
+git-repository-url = "https://github.com/tpt-solutions/tpt-embedded-core"
+edit-url-template = "https://github.com/tpt-solutions/tpt-embedded-core/edit/main/docs/{path}"

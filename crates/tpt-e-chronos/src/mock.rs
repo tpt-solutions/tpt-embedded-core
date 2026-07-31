@@ -3,7 +3,7 @@
 //! Provides a manual clock source and a convenience wrapper for testing
 //! the ring buffer and DMA handoff paths without real hardware.
 
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::cell::Cell;
 
 /// A manually-advancing clock for deterministic time-series testing.
 ///
@@ -23,30 +23,43 @@ use core::sync::atomic::{AtomicU64, Ordering};
 /// clock.advance(5);
 /// assert_eq!(clock.now(), 15);
 /// ```
+///
+/// Uses [`Cell`] rather than an atomic: this is a single-threaded test
+/// utility (no ISR/main-loop sharing claim, unlike [`crate::ring_buf::RingBuf`]),
+/// and `AtomicU64` doesn't exist on some real target chips this crate
+/// compiles for — `riscv32imc-unknown-none-elf` (ESP32-C3) lacks the
+/// atomic-RMW extension and only exposes `load`/`store` on `core::sync::atomic`
+/// types, not `fetch_add`. That gap went uncaught here because CI never
+/// cross-compiled the `mock` feature to a real chip target (see the root
+/// `todo.md`'s note that this exact bug class — `fetch_add`/`compare_exchange`
+/// under `mock`-or-similar on `riscv32imc` — was previously found and fixed
+/// in `tpt-e-slumber`'s mock and flagged there as unaudited elsewhere).
+/// `Cell` has no atomicity requirement at all, so it sidesteps the problem
+/// on every target rather than working around it per-target.
 #[derive(Debug)]
 pub struct MockClock {
-    ticks: AtomicU64,
+    ticks: Cell<u64>,
 }
 
 impl MockClock {
     /// Create a new mock clock starting at tick 0.
     pub fn new() -> Self {
-        Self { ticks: AtomicU64::new(0) }
+        Self { ticks: Cell::new(0) }
     }
 
     /// Advance the clock by the given number of ticks.
     pub fn advance(&self, ticks: u64) {
-        let _ = self.ticks.fetch_add(ticks, Ordering::Relaxed);
+        self.ticks.set(self.ticks.get() + ticks);
     }
 
     /// Get the current tick count.
     pub fn now(&self) -> u64 {
-        self.ticks.load(Ordering::Relaxed)
+        self.ticks.get()
     }
 
     /// Reset the clock to zero.
     pub fn reset(&self) {
-        self.ticks.store(0, Ordering::Relaxed);
+        self.ticks.set(0);
     }
 }
 

@@ -5,8 +5,8 @@ edition.workspace = true
 license.workspace = true
 description = "Verified state machine for mesh coordination on ESP32 swarms"
 repository.workspace = true
-readme = "../README.md"
-homepage = "https://github.com/tpt-software/tpt-embedded-core"
+readme = "README.md"
+homepage = "https://github.com/tpt-solutions/tpt-embedded-core"
 documentation = "https://docs.rs/tpt-e-swarm-sync"
 keywords = ["esp32", "mesh", "esp-now", "swarm", "embedded", "no_std"]
 categories = ["embedded", "no-std"]
@@ -15,7 +15,7 @@ categories = ["embedded", "no-std"]
 workspace = true
 
 [dependencies]
-tpt-e-chronos = { path = "../tpt-e-chronos" }
+tpt-e-chronos = { path = "../tpt-e-chronos", version = "0.1.0" }
 # No longer mock-only: `mesh.rs`'s `MeshNode` uses a bounded `heapless::Vec`
 # to track outstanding (unacknowledged) sent-message sequence numbers,
 # unconditionally (not just under `mock`).
@@ -23,7 +23,7 @@ heapless = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
-tpt-e-chronos = { path = "../tpt-e-chronos", features = ["mock"] }
+tpt-e-chronos = { path = "../tpt-e-chronos", version = "0.1.0", features = ["mock"] }
 # tpt-e-chronos depends on critical-section unconditionally (2026-07-30 fix
 # for the riscv32imc compile gap — see the root todo.md). Our own tests and
 # examples link final binaries, which need a critical-section *impl*
