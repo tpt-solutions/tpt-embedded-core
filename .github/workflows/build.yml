@@ -25,7 +25,7 @@ jobs:
             target: riscv32imac-unknown-none-elf
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: |
@@ -57,7 +57,7 @@ jobs:
     name: Build (default features, host)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       # No --features here on purpose: this is the regression guard for the
       # 2026-07-22 fix where tpt-e-typestate-hal and tpt-e-swarm-sync both
@@ -69,7 +69,7 @@ jobs:
     name: License & dependency audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check

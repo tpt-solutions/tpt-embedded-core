@@ -33,7 +33,7 @@ jobs:
     if: false
     runs-on: [self-hosted, esp32-hil]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: xtensa-esp32s3-none-elf
